@@ -11,7 +11,8 @@ project(
 )
 
 set(XSFDEU_PLUG_BUILD_NAME "eazutil" CACHE STRING "Name used for the built binary.")
-set(XSFDEU_PLUG_BUILD_OUTPUT "" CACHE PATH "Optional path to automatically copies the plugin build output. This should be pointing at x64dbg's root directory.")
+set(XSFDEU_PLUG_BUILD_OUTPUT "" CACHE PATH "Optional path to automatically copy the plugin build output. This should be pointing at x64dbg's root directory.")
+option(XSFDEU_PLUG_BUILD_OUTPUT_FORCE "Forces XSFDEU_PLUG_BUILD_OUTPUT" OFF)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/deps/dncomlib")
 
@@ -54,8 +55,12 @@ target_link_libraries(
 	dncomlib
 )
 
-# Auto copy build dll to x64dbg path
+# Auto copy build .dp to x64dbg path
 if (XSFDEU_PLUG_BUILD_OUTPUT)	
+	if (NOT XSFDEU_PLUG_BUILD_OUTPUT_FORCE AND NOT EXISTS "${XSFDEU_PLUG_BUILD_OUTPUT}/x96dbg.exe")
+		message(FATAL_ERROR "Invalid XSFDEU_PLUG_BUILD_OUTPUT path! (x64dbg launcher was not found in the directory which is used to determine whether the directory is valid. If this is a mistake you can set the XSFDEU_PLUG_BUILD_OUTPUT_FORCE to true/on)")
+	endif()
+
 	set(XSFDEU_PLUG_BUILD_OUT "${XSFDEU_PLUG_BUILD_OUTPUT}/${XSFDEU_ARCH_TXT}/plugins/${XSFDEU_PLUG_BUILD_NAME}.${XSFDEU_FILE_EXT}")
 	message("Install plugin on build enabled! (${XSFDEU_PLUG_BUILD_OUT})")
 

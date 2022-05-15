@@ -33,9 +33,15 @@ PLUG_EXPORT auto plugsetup(PLUG_SETUPSTRUCT* s) -> void
 	global::hMenuDisasm = s->hMenuDisasm;
 	global::hMenuDump   = s->hMenuDump;
 	global::hMenuStack  = s->hMenuStack;
+
+	if (!_plugin_menuadd(global::hMenu, global::plug_name))
+	{
+		xsfd::log("!Failed to add a menu entry!");
+		return;
+	}
 }
 
 PLUG_EXPORT auto plugstop() -> void
 {	
-	xsfd::log("!Unloading eazutil...\n");
+	xsfd::log("!Unloading " XSFD_PLUG_NAME "...\n");
 }
