@@ -2,14 +2,25 @@
 #include <_plugins.h>
 #include "xsfd_utils.hpp"
 #include "global.hpp"
+#include "callbacks/callbacks.hpp"
 
 constexpr int menuid_initalize = 1;
 
 PLUG_EXPORT auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 {
 	PLUG_CB_MENUENTRY * s = reinterpret_cast<decltype(s)>(_s);
-	if (s->hEntry == menuid_initalize)
-		xsfd::log("!Test\n");
+
+	switch (s->hEntry)
+	{
+		case menuid_initalize:
+			callbacks::initialize();
+			break;
+		default:
+			xsfd::log("!WARNING: Received menuentry callback but was not handled");
+			break;
+	}
+
+	return;
 }
 
 
