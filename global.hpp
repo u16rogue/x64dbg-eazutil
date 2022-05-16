@@ -15,4 +15,5 @@ namespace global
 	inline int    hMenuDisasm;
 	inline int    hMenuDump;
 	inline int    hMenuStack;
+	inline int    h_menu_entry;
 }
