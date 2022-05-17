@@ -5,6 +5,8 @@
 
 namespace global
 {
+	inline bool initialized = false;
+
 	inline const char    plug_name[]  = { XSFD_PLUG_NAME };
 	inline constexpr int plug_version = 1;
 
