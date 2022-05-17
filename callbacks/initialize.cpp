@@ -6,12 +6,6 @@
 #include "../xsfd_utils.hpp"
 #include <optional>
 
-#include <mscoree.h>
-
-#ifdef XSFDEU_DEBUG
-	#include <codecvt>
-#endif
-
 static auto get_dotnet_path() -> std::optional<std::filesystem::path> 
 {
 	// Find runtime to be loaded
@@ -53,8 +47,7 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 
 		#ifdef XSFDEU_DEBUG
 		{
-			std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
-			xsfd::log("!Found dotNet version: %s\n", conv.to_bytes(ver_str).c_str());
+			xsfd::log("!Found dotNet version: %s\n", xsfd::wc2u8(ver_str).c_str());
 		}
 		#endif
 
@@ -129,6 +122,8 @@ auto callbacks::initialize() -> void
 			xsfd::log("!ERROR: dbgshim.dll was not found on the selected dotNet directory.\n");
 			return;
 		}
+
+		xsfd::log("!Using dotNet: %s\n", xsfd::wc2u8(db_path->c_str()).c_str());
 
 		dotnet::h_dbgshim = LoadLibraryW(dbgshim_path.c_str());
 		if (!dotnet::h_dbgshim)

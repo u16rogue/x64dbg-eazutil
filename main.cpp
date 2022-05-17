@@ -47,7 +47,15 @@ PLUG_EXPORT auto pluginit(PLUG_INITSTRUCT * s) -> bool
 
 PLUG_EXPORT auto plugsetup(PLUG_SETUPSTRUCT * s) -> void
 {
-	xsfd::log("!Initializing plugin ( version: %d | build: " __DATE__ " " __TIME__ " )...\n", global::plug_version);
+	xsfd::init();
+
+	#ifdef XSFDEU_DEBUG
+		constexpr char btype[] = { "DEBUG" };
+	#else
+		constexpr char btype[] = { "RELEASE" };
+	#endif
+
+	xsfd::log("!Initializing plugin ( %s | version: %d | build: " __DATE__ " " __TIME__ " )...\n", btype, global::plug_version);
 
 	global::hwndDlg     = s->hwndDlg;
 	global::hMenu       = s->hMenu;
