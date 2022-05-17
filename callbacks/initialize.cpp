@@ -1,9 +1,12 @@
 #include "callbacks.hpp"
 #include <string_view>
 #include <filesystem>
+#include <Windows.h>
 #include <string>
 #include "../xsfd_utils.hpp"
 #include <optional>
+
+#include <mscoree.h>
 
 #ifdef XSFDEU_DEBUG
 	#include <codecvt>
@@ -82,20 +85,61 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 
 auto callbacks::initialize() -> void
 {	
-	const auto db_path = get_dotnet_path();
-	if (!db_path)
+	if (!dotnet::meta_host)
 	{
-		xsfd::log("!ERROR: No valid dotNet found.\n");
-		return;
-	}
-	
-	if (!std::filesystem::exists(*db_path/L"dbgshim.dll"))
-	{
-		xsfd::log("!ERROR: dbgshim.dll was not found on the selected dotNet directory.");
-		return;
+		// CLSID_CLRMetaHost
+		// IID_ICLRMetaHost
+
+		constexpr dncomlib::GUID CLSID_CLRMetaHost = {
+			.Data1 = 0x9280188d,
+			.Data2 = 0x0E8E,
+			.Data3 = 0x4867,
+			.Data4 = { 0xB3, 0x0C, 0x7F, 0xA8, 0x38, 0x84, 0xE8, 0xDE }
+		};
+
+		constexpr dncomlib::GUID IID_ICLRMetaHost = {
+			.Data1 = 0xD332DB9E,
+			.Data2 = 0xB9B3,
+			.Data3 = 0x4125,
+			.Data4 = { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 }
+		};
+
+		dotnet::meta_host = dncomlib::clr_create_instance(CLSID_CLRMetaHost, IID_ICLRMetaHost);
+		if (!dotnet::meta_host)
+		{
+			xsfd::log("!ERROR: Unable to create a CLR instance -> (CLSID_CLRMetaHost, IID_ICLRMetaHost)\n");	
+			return;
+		}
+
+		xsfd::log("!Created CLR instance (CLSID_CLRMetaHost, IID_ICLRMetaHost) @ 0x%p\n", *dotnet::meta_host.ppinstance());
 	}
 
-	
+	if (!dotnet::h_dbgshim)
+	{
+		const auto db_path = get_dotnet_path();
+		if (!db_path)
+		{
+			xsfd::log("!ERROR: No valid dotNet found.\n");
+			return;
+		}
+
+		const auto & dbgshim_path = *db_path/L"dbgshim.dll";
+		if (!std::filesystem::exists(dbgshim_path))
+		{
+			xsfd::log("!ERROR: dbgshim.dll was not found on the selected dotNet directory.\n");
+			return;
+		}
+
+		dotnet::h_dbgshim = LoadLibraryW(dbgshim_path.c_str());
+		if (!dotnet::h_dbgshim)
+		{
+			xsfd::log("!ERROR: Failed to load dbgshim.dll\n");
+			return;
+		}
+
+		xsfd::log("!dbgshim.dll loaded @ 0x%p\n", dotnet::h_dbgshim);
+	}
 
 	global::initialized = true;
+	xsfd::log("!Successfuly initialized!\n");
 }
