@@ -44,12 +44,8 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 			continue;
 
 		std::wstring ver_str = path_str.substr(ver_index + 1); 
-
-		#ifdef XSFDEU_DEBUG
-		{
-			xsfd::log("!Found dotNet version: %s\n", xsfd::wc2u8(ver_str).c_str());
-		}
-		#endif
+		
+		XSFD_DEBUG_LOG("!Found dotNet version: %s\n", xsfd::wc2u8(ver_str).c_str());
 
 		int nvers[3] = {};
 		if (swscanf_s(ver_str.c_str(), L"%d.%d.%d", &nvers[0], &nvers[1], &nvers[2]) != 3)
@@ -78,26 +74,18 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 
 auto callbacks::initialize() -> void
 {	
-	if (!dotnet::meta_host)
+	HANDLE proc = DbgGetProcessHandle();
+	if (!proc)
 	{
-		// CLSID_CLRMetaHost
-		// IID_ICLRMetaHost
+		xsfd::log("!ERROR: Invalid process handle!\n");
+		return;
+	}
 
-		constexpr dncomlib::GUID CLSID_CLRMetaHost = {
-			.Data1 = 0x9280188d,
-			.Data2 = 0x0E8E,
-			.Data3 = 0x4867,
-			.Data4 = { 0xB3, 0x0C, 0x7F, 0xA8, 0x38, 0x84, 0xE8, 0xDE }
-		};
+	xsfd::log("!Handle: 0x%p", proc);
 
-		constexpr dncomlib::GUID IID_ICLRMetaHost = {
-			.Data1 = 0xD332DB9E,
-			.Data2 = 0xB9B3,
-			.Data3 = 0x4125,
-			.Data4 = { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 }
-		};
-
-		dotnet::meta_host = dncomlib::clr_create_instance(CLSID_CLRMetaHost, IID_ICLRMetaHost);
+	if (!dotnet::meta_host)
+	{	
+		dotnet::meta_host = dncomlib::clr_create_meta_host_instance();
 		if (!dotnet::meta_host)
 		{
 			xsfd::log("!ERROR: Unable to create a CLR instance -> (CLSID_CLRMetaHost, IID_ICLRMetaHost)\n");	
@@ -133,6 +121,41 @@ auto callbacks::initialize() -> void
 		}
 
 		xsfd::log("!dbgshim.dll loaded @ 0x%p\n", dotnet::h_dbgshim);
+	}
+
+	for (const auto & runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
+	{
+		auto runtime_info = dncomlib::runtime_info::from_unknown(runtime);
+		if (!runtime_info)
+		{
+			xsfd::log("!ERROR: Failed to obtain runtime from enumerator!\n");
+			return;
+		}
+
+		XSFD_DEBUG_LOG("!Found loaded runtime version: %s\n", xsfd::wc2u8(runtime_info.get_version_string()).c_str());
+
+		auto host = runtime_info.get_host();
+		if (!host)
+		{
+			xsfd::log("!ERROR: Invalid host\n");
+			continue;
+		}
+
+		auto thunk = host.get_default_domain_thunk();
+		if (!thunk)
+		{
+			xsfd::log("!ERROR: Invalid thunk\n");
+			continue;
+		}
+
+		auto domain = dncomlib::app_domain::from_unknown(thunk);
+		if (!domain)
+		{
+			xsfd::log("!ERROR: Invalid domain\n");
+			continue;
+		}
+
+		xsfd::log("!Domain: %s\n", xsfd::wc2u8(domain.get_friendly_name()).c_str());
 	}
 
 	global::initialized = true;
