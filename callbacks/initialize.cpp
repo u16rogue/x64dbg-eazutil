@@ -74,14 +74,23 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 
 auto callbacks::initialize() -> void
 {	
+	static HANDLE last_proc = nullptr;
 	HANDLE proc = DbgGetProcessHandle();
+
 	if (!proc)
 	{
 		xsfd::log("!ERROR: Invalid process handle!\n");
 		return;
 	}
+	xsfd::log("!Handle: 0x%p\n", proc);
 
-	xsfd::log("!Handle: 0x%p", proc);
+
+	if (last_proc && last_proc != proc)
+	{
+		xsfd::log("!Resetting runtime_info for new handle.\n");
+		dotnet::runtime_info = nullptr;
+	}
+	last_proc = proc;
 
 	if (!dotnet::meta_host)
 	{	
@@ -95,6 +104,7 @@ auto callbacks::initialize() -> void
 		xsfd::log("!Created CLR instance (CLSID_CLRMetaHost, IID_ICLRMetaHost) @ 0x%p\n", *dotnet::meta_host.ppinstance());
 	}
 
+	// Possible dotNet core support? dont think there's one for core. verification needed.
 	if (!dotnet::h_dbgshim)
 	{
 		const auto db_path = get_dotnet_path();
@@ -123,39 +133,39 @@ auto callbacks::initialize() -> void
 		xsfd::log("!dbgshim.dll loaded @ 0x%p\n", dotnet::h_dbgshim);
 	}
 
-	for (const auto & runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
+	if (!dotnet::runtime_info)
 	{
-		auto runtime_info = dncomlib::runtime_info::from_unknown(runtime);
-		if (!runtime_info)
+		for (const auto & runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
 		{
-			xsfd::log("!ERROR: Failed to obtain runtime from enumerator!\n");
+			auto runtime_info = dncomlib::runtime_info::from_unknown(runtime);
+			if (!dotnet::runtime_info)
+			{
+				xsfd::log("!ERROR: Failed to obtain runtime from enumerator!\n");
+				continue;
+			}
+
+			XSFD_DEBUG_LOG("!Found loaded runtime version: %s\n", xsfd::wc2u8(dotnet::runtime_info.get_version_string()).c_str());
+			dotnet::runtime_info = std::move(runtime_info);
+			break;
+		}
+
+		if (!dotnet::runtime_info)
+		{
+			xsfd::log("!ERROR: No runtime info loaded.\n");
+			return;
+		}
+	}
+
+	if (!dotnet::clr_debugging)
+	{
+		dotnet::clr_debugging = dncomlib::clr_create_debugging();
+		if (!dotnet::clr_debugging)
+		{
+			xsfd::log("!ERROR: Failed to load CLR Debugging.\n");
 			return;
 		}
 
-		XSFD_DEBUG_LOG("!Found loaded runtime version: %s\n", xsfd::wc2u8(runtime_info.get_version_string()).c_str());
-
-		auto host = runtime_info.get_host();
-		if (!host)
-		{
-			xsfd::log("!ERROR: Invalid host\n");
-			continue;
-		}
-
-		auto thunk = host.get_default_domain_thunk();
-		if (!thunk)
-		{
-			xsfd::log("!ERROR: Invalid thunk\n");
-			continue;
-		}
-
-		auto domain = dncomlib::app_domain::from_unknown(thunk);
-		if (!domain)
-		{
-			xsfd::log("!ERROR: Invalid domain\n");
-			continue;
-		}
-
-		xsfd::log("!Domain: %s\n", xsfd::wc2u8(domain.get_friendly_name()).c_str());
+		XSFD_DEBUG_LOG("!Created CLR Instance (CLSID_CLRDebugging, IID_ICLRDebugging)!");
 	}
 
 	global::initialized = true;

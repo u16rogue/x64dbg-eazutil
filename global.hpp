@@ -27,5 +27,7 @@ namespace global
 namespace dotnet
 {
 	inline dncomlib::meta_host meta_host;
+	inline dncomlib::runtime_info runtime_info;
+	inline dncomlib::clr_debugging clr_debugging;
 	inline void * h_dbgshim = nullptr;
 }
