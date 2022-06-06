@@ -85,9 +85,12 @@ auto callbacks::initialize() -> void
 	xsfd::log("!Handle: 0x%p\n", proc);
 
 
-	if (last_proc && last_proc != proc)
+	// if (last_proc && last_proc != proc)
 	{
-		xsfd::log("!Resetting runtime_info for new handle.\n");
+		// xsfd::log("!Resetting runtime_info for new handle.\n");
+
+		// I think we should reset our runtime info on each attach since process handles can have repeat values which
+		// prevents us from properly obtaining a fresh runtime info
 		dotnet::runtime_info = nullptr;
 	}
 	last_proc = proc;
@@ -138,13 +141,13 @@ auto callbacks::initialize() -> void
 		for (const auto & runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
 		{
 			auto runtime_info = dncomlib::runtime_info::from_unknown(runtime);
-			if (!dotnet::runtime_info)
+			if (!runtime_info)
 			{
 				xsfd::log("!ERROR: Failed to obtain runtime from enumerator!\n");
 				continue;
 			}
 
-			XSFD_DEBUG_LOG("!Found loaded runtime version: %s\n", xsfd::wc2u8(dotnet::runtime_info.get_version_string()).c_str());
+			XSFD_DEBUG_LOG("!Found loaded runtime version: %s\n", xsfd::wc2u8(runtime_info.get_version_string()).c_str());
 			dotnet::runtime_info = std::move(runtime_info);
 			break;
 		}
@@ -167,6 +170,8 @@ auto callbacks::initialize() -> void
 
 		XSFD_DEBUG_LOG("!Created CLR Instance (CLSID_CLRDebugging, IID_ICLRDebugging)!");
 	}
+
+
 
 	global::initialized = true;
 	xsfd::log("!Successfuly initialized!\n");
