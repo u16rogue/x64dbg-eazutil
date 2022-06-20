@@ -13,6 +13,7 @@ option(XSFDEU_PLUG_BUILD_OUTPUT_FORCE "Forces XSFDEU_PLUG_BUILD_OUTPUT" OFF)
 option(XSFDEU_DEBUG "Debug flag" OFF)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/deps/dncomlib")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/deps/dnlib")
 
 add_library(
 	${PROJECT_NAME}
@@ -67,7 +68,7 @@ target_link_libraries(
 	PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}dbg.lib"
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}bridge.lib"
-	dncomlib
+	dnlib
 )
 
 # Auto copy build .dp to x64dbg path

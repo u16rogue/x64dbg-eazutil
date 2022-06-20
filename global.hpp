@@ -1,6 +1,6 @@
 #pragma once
 
-#include <dncomlib/dncomlib.hpp>
+#include <dnlib/dnlib.hpp>
 
 #define XSFD_PLUG_NAME "eazutil"
 #define PLUG_EXPORT extern "C" __attribute__((dllexport))
@@ -26,8 +26,11 @@ namespace global
 
 namespace dotnet
 {
-	inline dncomlib::meta_host meta_host;
-	inline dncomlib::runtime_info runtime_info;
-	inline dncomlib::clr_debugging clr_debugging;
+	inline dnlib::meta_host meta_host;
 	inline void * h_dbgshim = nullptr;
+	inline /*dncomlib::runtime_info*/ dnlib::runtime_info runtime_info;
+	/*
+	inline dncomlib::clr_debugging clr_debugging;
+	inline void ** cor_dbg_process5 = nullptr;
+	*/
 }

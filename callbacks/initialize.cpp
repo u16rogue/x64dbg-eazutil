@@ -5,6 +5,7 @@
 #include <string>
 #include "../xsfd_utils.hpp"
 #include <optional>
+#include <TlHelp32.h>
 
 static auto get_dotnet_path() -> std::optional<std::filesystem::path> 
 {
@@ -97,17 +98,17 @@ auto callbacks::initialize() -> void
 
 	if (!dotnet::meta_host)
 	{	
-		dotnet::meta_host = dncomlib::clr_create_meta_host_instance();
+		dotnet::meta_host = dnlib::meta_host::create_instance();
 		if (!dotnet::meta_host)
 		{
 			xsfd::log("!ERROR: Unable to create a CLR instance -> (CLSID_CLRMetaHost, IID_ICLRMetaHost)\n");	
 			return;
 		}
 
-		xsfd::log("!Created CLR instance (CLSID_CLRMetaHost, IID_ICLRMetaHost) @ 0x%p\n", *dotnet::meta_host.ppinstance());
+		XSFD_DEBUG_LOG("!Created CLR instance (CLSID_CLRMetaHost, IID_ICLRMetaHost) @ 0x%p\n", *dotnet::meta_host);
 	}
 
-	// Possible dotNet core support? dont think there's one for core. verification needed.
+	// [13/06/2022] Possible dotNet core support?
 	if (!dotnet::h_dbgshim)
 	{
 		const auto db_path = get_dotnet_path();
@@ -133,9 +134,31 @@ auto callbacks::initialize() -> void
 			return;
 		}
 
-		xsfd::log("!dbgshim.dll loaded @ 0x%p\n", dotnet::h_dbgshim);
+		XSFD_DEBUG_LOG("!dbgshim.dll loaded @ 0x%p\n", dotnet::h_dbgshim);
 	}
 
+	if (!dotnet::runtime_info)
+	{
+		for (auto runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
+		{
+			if (runtime)
+			{
+				XSFD_DEBUG_LOG("!Found loaded runtime: %s\n", xsfd::wc2u8(runtime.get_version_string()).c_str());
+				dotnet::runtime_info = std::move(runtime);
+				break;
+			}
+		}
+
+		if (!dotnet::runtime_info)
+		{
+			xsfd::log("!ERROR: No runtime info loaded.\n");
+			return;
+		}
+
+		xsfd::log("!Using loaded runtime: %s\n", xsfd::wc2u8(dotnet::runtime_info.get_version_string()).c_str());
+	}
+
+	#if 0
 	if (!dotnet::runtime_info)
 	{
 		for (const auto & runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
@@ -168,11 +191,56 @@ auto callbacks::initialize() -> void
 			return;
 		}
 
-		XSFD_DEBUG_LOG("!Created CLR Instance (CLSID_CLRDebugging, IID_ICLRDebugging)!");
+		XSFD_DEBUG_LOG("!Created CLR Instance (CLSID_CLRDebugging, IID_ICLRDebugging)! @ 0x%p\n", *dotnet::clr_debugging.ppinstance());
 	}
 
+	/*
+	// [13/06/2022] - This (the documentation) is literally empty, how am i supposed to use this???? https://help.x64dbg.com/en/latest/developers/functions/debug/DbgSymbolEnum.html	
+	DbgSymbolEnum(0, [](const struct SYMBOLPTR_* symbol, void* user) -> bool
+	{
+		XSFD_DEBUG_LOG("!lmao: 0x%p\n", symbol->modbase);	
+		return true;
+	}, 0);
+	*/
 
+	auto pid = DbgGetProcessId();
+	XSFD_DEBUG_LOG("!Target PID: %d\n", pid);
+	if (!pid)
+	{
+		xsfd::log("!ERROR: Invalid target PID\n");
+		return;
+	}
+
+	HANDLE mod_snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
+	XSFD_DEBUG_LOG("!Module snapshot: 0x%p\n", mod_snap);
+	if (mod_snap == INVALID_HANDLE_VALUE)
+	{
+		xsfd::log("!ERROR: Failed to create module snapshot. GLE: %d\n", GetLastError());
+		return;
+	}
+
+	MODULEENTRY32 me32 { .dwSize = sizeof(me32) };
+	if (Module32First(mod_snap, &me32))
+	{
+		do
+		{
+			XSFD_DEBUG_LOG("!Enumerating module: %s @ 0x%p\n", me32.szModule, me32.modBaseAddr);
+			auto r = 	dotnet::clr_debugging.open_virtual_remote_process(me32.modBaseAddr);
+		} while (Module32Next(mod_snap, &me32));
+	}
+	else
+	{
+		xsfd::log("!Module enumeration failed at first attempt. GLE: %d", GetLastError());
+	}
+
+	CloseHandle(mod_snap);
+	if (!dotnet::cor_dbg_process5)
+	{
+		xsfd::log("!ERROR: Could not obtain ICorDebugProcess5 Interface\n");
+		return;
+	}
 
 	global::initialized = true;
 	xsfd::log("!Successfuly initialized!\n");
+	#endif
 }
