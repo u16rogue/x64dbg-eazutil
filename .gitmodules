@@ -1,4 +1,0 @@
-[submodule "deps/dnlib"]
-	path = deps/dnlib
-	url = git@gitlab.com:u16rogue/dnlib.git
-	shallow = true

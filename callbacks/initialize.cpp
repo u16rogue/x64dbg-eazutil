@@ -21,9 +21,9 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 	if (!std::filesystem::exists(dn_ver_dir))
 		return std::nullopt;
 
-	bool has_path = false;
 	std::filesystem::path best_path;
-	int best_ver[3] = { 0, 0, 0 };
+	bool                  has_path = false;
+	int                   best_ver[3] = { 0, 0, 0 };
 
 	for (const auto & ver_path : std::filesystem::directory_iterator(dn_ver_dir))
 	{
@@ -46,7 +46,7 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 
 		std::wstring ver_str = path_str.substr(ver_index + 1); 
 		
-		XSFD_DEBUG_LOG("!Found dotNet version: %s\n", xsfd::wc2u8(ver_str).c_str());
+		XSFD_DEBUG_LOG("!Found installed dotNet version: %s\n", xsfd::wc2u8(ver_str).c_str());
 
 		int nvers[3] = {};
 		if (swscanf_s(ver_str.c_str(), L"%d.%d.%d", &nvers[0], &nvers[1], &nvers[2]) != 3)
@@ -75,172 +75,7 @@ static auto get_dotnet_path() -> std::optional<std::filesystem::path>
 
 auto callbacks::initialize() -> void
 {	
-	static HANDLE last_proc = nullptr;
 	HANDLE proc = DbgGetProcessHandle();
 
-	if (!proc)
-	{
-		xsfd::log("!ERROR: Invalid process handle!\n");
-		return;
-	}
-	xsfd::log("!Handle: 0x%p\n", proc);
-
-
-	// if (last_proc && last_proc != proc)
-	{
-		// xsfd::log("!Resetting runtime_info for new handle.\n");
-
-		// I think we should reset our runtime info on each attach since process handles can have repeat values which
-		// prevents us from properly obtaining a fresh runtime info
-		dotnet::runtime_info = nullptr;
-	}
-	last_proc = proc;
-
-	if (!dotnet::meta_host)
-	{	
-		dotnet::meta_host = dnlib::meta_host::create_instance();
-		if (!dotnet::meta_host)
-		{
-			xsfd::log("!ERROR: Unable to create a CLR instance -> (CLSID_CLRMetaHost, IID_ICLRMetaHost)\n");	
-			return;
-		}
-
-		XSFD_DEBUG_LOG("!Created CLR instance (CLSID_CLRMetaHost, IID_ICLRMetaHost) @ 0x%p\n", *dotnet::meta_host);
-	}
-
-	// [13/06/2022] Possible dotNet core support?
-	if (!dotnet::h_dbgshim)
-	{
-		const auto db_path = get_dotnet_path();
-		if (!db_path)
-		{
-			xsfd::log("!ERROR: No valid dotNet found.\n");
-			return;
-		}
-
-		const auto & dbgshim_path = *db_path/L"dbgshim.dll";
-		if (!std::filesystem::exists(dbgshim_path))
-		{
-			xsfd::log("!ERROR: dbgshim.dll was not found on the selected dotNet directory.\n");
-			return;
-		}
-
-		xsfd::log("!Using dotNet: %s\n", xsfd::wc2u8(db_path->c_str()).c_str());
-
-		dotnet::h_dbgshim = LoadLibraryW(dbgshim_path.c_str());
-		if (!dotnet::h_dbgshim)
-		{
-			xsfd::log("!ERROR: Failed to load dbgshim.dll\n");
-			return;
-		}
-
-		XSFD_DEBUG_LOG("!dbgshim.dll loaded @ 0x%p\n", dotnet::h_dbgshim);
-	}
-
-	if (!dotnet::runtime_info)
-	{
-		for (auto runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
-		{
-			if (runtime)
-			{
-				XSFD_DEBUG_LOG("!Found loaded runtime: %s\n", xsfd::wc2u8(runtime.get_version_string()).c_str());
-				dotnet::runtime_info = std::move(runtime);
-				break;
-			}
-		}
-
-		if (!dotnet::runtime_info)
-		{
-			xsfd::log("!ERROR: No runtime info loaded.\n");
-			return;
-		}
-
-		xsfd::log("!Using loaded runtime: %s\n", xsfd::wc2u8(dotnet::runtime_info.get_version_string()).c_str());
-	}
-
-	#if 0
-	if (!dotnet::runtime_info)
-	{
-		for (const auto & runtime : dotnet::meta_host.enumerate_loaded_runtimes(proc))
-		{
-			auto runtime_info = dncomlib::runtime_info::from_unknown(runtime);
-			if (!runtime_info)
-			{
-				xsfd::log("!ERROR: Failed to obtain runtime from enumerator!\n");
-				continue;
-			}
-
-			XSFD_DEBUG_LOG("!Found loaded runtime version: %s\n", xsfd::wc2u8(runtime_info.get_version_string()).c_str());
-			dotnet::runtime_info = std::move(runtime_info);
-			break;
-		}
-
-		if (!dotnet::runtime_info)
-		{
-			xsfd::log("!ERROR: No runtime info loaded.\n");
-			return;
-		}
-	}
-
-	if (!dotnet::clr_debugging)
-	{
-		dotnet::clr_debugging = dncomlib::clr_create_debugging();
-		if (!dotnet::clr_debugging)
-		{
-			xsfd::log("!ERROR: Failed to load CLR Debugging.\n");
-			return;
-		}
-
-		XSFD_DEBUG_LOG("!Created CLR Instance (CLSID_CLRDebugging, IID_ICLRDebugging)! @ 0x%p\n", *dotnet::clr_debugging.ppinstance());
-	}
-
-	/*
-	// [13/06/2022] - This (the documentation) is literally empty, how am i supposed to use this???? https://help.x64dbg.com/en/latest/developers/functions/debug/DbgSymbolEnum.html	
-	DbgSymbolEnum(0, [](const struct SYMBOLPTR_* symbol, void* user) -> bool
-	{
-		XSFD_DEBUG_LOG("!lmao: 0x%p\n", symbol->modbase);	
-		return true;
-	}, 0);
-	*/
-
-	auto pid = DbgGetProcessId();
-	XSFD_DEBUG_LOG("!Target PID: %d\n", pid);
-	if (!pid)
-	{
-		xsfd::log("!ERROR: Invalid target PID\n");
-		return;
-	}
-
-	HANDLE mod_snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
-	XSFD_DEBUG_LOG("!Module snapshot: 0x%p\n", mod_snap);
-	if (mod_snap == INVALID_HANDLE_VALUE)
-	{
-		xsfd::log("!ERROR: Failed to create module snapshot. GLE: %d\n", GetLastError());
-		return;
-	}
-
-	MODULEENTRY32 me32 { .dwSize = sizeof(me32) };
-	if (Module32First(mod_snap, &me32))
-	{
-		do
-		{
-			XSFD_DEBUG_LOG("!Enumerating module: %s @ 0x%p\n", me32.szModule, me32.modBaseAddr);
-			auto r = 	dotnet::clr_debugging.open_virtual_remote_process(me32.modBaseAddr);
-		} while (Module32Next(mod_snap, &me32));
-	}
-	else
-	{
-		xsfd::log("!Module enumeration failed at first attempt. GLE: %d", GetLastError());
-	}
-
-	CloseHandle(mod_snap);
-	if (!dotnet::cor_dbg_process5)
-	{
-		xsfd::log("!ERROR: Could not obtain ICorDebugProcess5 Interface\n");
-		return;
-	}
-
-	global::initialized = true;
-	xsfd::log("!Successfuly initialized!\n");
-	#endif
+	
 }
