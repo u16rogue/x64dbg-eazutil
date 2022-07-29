@@ -17,14 +17,18 @@ option(XSFDEU_DEBUG "Debug flag" OFF)
 add_library(
 	${PROJECT_NAME}
 	SHARED
-	"${CMAKE_CURRENT_SOURCE_DIR}/global.hpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
 
-	"${CMAKE_CURRENT_SOURCE_DIR}/xsfd_utils.hpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/xsfd_utils.cpp"
+    "msdnlib.hpp"
+	"msdnlib.cpp"	
 
-	"${CMAKE_CURRENT_SOURCE_DIR}/callbacks/callbacks.hpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/callbacks/initialize.cpp"	
+	"global.hpp"
+	"main.cpp"
+
+	"xsfd_utils.hpp"
+	"xsfd_utils.cpp"
+
+	"callbacks/callbacks.hpp"
+	"callbacks/initialize.cpp"	
 )
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)

@@ -16,6 +16,27 @@
 #endif
 
 
+namespace xsfd::details
+{
+	template <typename T>
+	struct _defer
+	{
+		_defer(T && v_)
+			: v(v_)
+		{}
+
+		~_defer() { v(); }
+
+		const T v;
+	};
+}
+
+#define XSFD_GLUE2(m1, m2) m1##m2
+#define XSFD_GLUE(m1, m2) XSFD_GLUE2(m1, m2)
+
+#define XSFD_DEFER \
+	xsfd::details::_defer XSFD_GLUE(___DEFER, __LINE__) = [&]()
+
 namespace xsfd
 {
 	auto init() -> bool;
@@ -45,4 +66,6 @@ namespace xsfd
 	}	
 
 	auto wc2u8(const std::wstring_view & str) -> std::string;
+
+
 }
