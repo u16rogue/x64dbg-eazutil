@@ -244,4 +244,5 @@ auto callbacks::initialize() -> void
 	XSFD_DEBUG_LOG("!Open virtual process for debugging @ 0x%p\n", dotnet::cor_debug_process);
 
 	global::initialized = true;
+	_plugin_menuentrysetname(global::pluginHandle, menuid_initalize, "Re-Initialize");
 }

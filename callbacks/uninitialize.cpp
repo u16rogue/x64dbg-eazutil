@@ -42,4 +42,5 @@ auto callbacks::uninitialize(uninit mode) -> void
 	}
 
 	global::initialized = false;
+	_plugin_menuentrysetname(global::pluginHandle, menuid_initalize, "Initialize");
 }

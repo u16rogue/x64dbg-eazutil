@@ -4,7 +4,6 @@
 #include "global.hpp"
 #include "callbacks/callbacks.hpp"
 
-constexpr int menuid_initalize = 1;
 
 PLUG_EXPORT auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 {

@@ -6,6 +6,9 @@
 #define XSFD_PLUG_NAME "eazutil"
 #define PLUG_EXPORT extern "C" __attribute__((dllexport))
 
+// TODO: namespace this
+constexpr int menuid_initalize = 1;
+
 namespace global
 {
 	inline bool initialized = false;
