@@ -1,0 +1,1 @@
+This textfile exist so git would keep the directory from existing, this directory is for dependencies. some dependencies are user applied and isn't available as a submodule this is due to the size and frequency of these dependencies its not included in the repo which makes this directory "empty"
