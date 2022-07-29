@@ -80,6 +80,8 @@ static HRESULT(*_CLRCreateInstance)(REFCLSID, REFIID, LPVOID *) = nullptr;
 
 auto callbacks::initialize() -> void
 {	
+	uninitialize(uninit::PARTIAL);
+
 	if (!h_mscoree)
 	{
 		h_mscoree = LoadLibraryW(L"mscoree.dll");
@@ -203,7 +205,6 @@ auto callbacks::initialize() -> void
 		return;
 	}
 
-	ICorDebugProcess * cor_debug_process = nullptr;
 	CLR_DEBUGGING_VERSION cdv = {
 		.wStructVersion = 0,
 		.wMajor         = 4,
@@ -225,25 +226,22 @@ auto callbacks::initialize() -> void
 	{
 		static constexpr IID IID_ICorDebugProcess = { 0x3d6f5f64, 0x7538, 0x11d3, 0x8d, 0x5b, 0x00, 0x10, 0x4b, 0x35, 0xe7, 0xef };
 		XSFD_DEBUG_LOG("    %s", me32.szModule);
-		if (dotnet::clr_debugging->OpenVirtualProcess(ULONG64(me32.hModule), dotnet::ddt_instance.get(), dotnet::dlp_instance.get(), &cdv, IID_ICorDebugProcess, reinterpret_cast<IUnknown **>(&cor_debug_process), &cdv, &cdpf) == S_OK)
+		if (dotnet::clr_debugging->OpenVirtualProcess(ULONG64(me32.hModule), dotnet::ddt_instance.get(), dotnet::dlp_instance.get(), &cdv, IID_ICorDebugProcess, reinterpret_cast<IUnknown **>(&dotnet::cor_debug_process), &cdv, &cdpf) == S_OK)
 		{
 			XSFD_DEBUG_LOG(" -- OK @ 0x%p\n", me32.szModule);
 			break;
 		}
-		cor_debug_process = nullptr; // Assurance :)
+		dotnet::cor_debug_process = nullptr; // Assurance :)
 		XSFD_DEBUG_LOG(" -- nope\n");
 	} while (Module32Next(mod_snap, &me32));
 
-	if (!cor_debug_process)
+	if (!dotnet::cor_debug_process)
 	{
 		xsfd::log("!ERROR: Failed to open debug handle to virtual process.\n");
 		return;
 	}
 
-	XSFD_DEFER {
-		XSFD_DEBUG_LOG("!Releasing debug process...\n");
-		cor_debug_process->Release();
-	};
+	XSFD_DEBUG_LOG("!Open virtual process for debugging @ 0x%p\n", dotnet::cor_debug_process);
 
-	XSFD_DEBUG_LOG("!Open virtual process for debugging @ 0x%p\n", cor_debug_process);
+	global::initialized = true;
 }

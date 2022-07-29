@@ -29,6 +29,7 @@ add_library(
 
 	"callbacks/callbacks.hpp"
 	"callbacks/initialize.cpp"	
+	"callbacks/uninitialize.cpp"
 )
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
