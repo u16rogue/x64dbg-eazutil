@@ -38,5 +38,6 @@ namespace dotnet
 	// inline ICLRRuntimeInfo * runtime_info  = nullptr;
 	inline std::unique_ptr<xsfd::debug_lib_provider> dlp_instance = nullptr;
 	inline std::unique_ptr<xsfd::debug_data_target>  ddt_instance = nullptr;
-	inline ICorDebugProcess * cor_debug_process = nullptr;
+	inline ICorDebugProcess  * cor_debug_process  = nullptr;
+	inline ICorDebugProcess5 * cor_debug_process5 = nullptr;
 }

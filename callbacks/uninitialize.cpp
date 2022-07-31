@@ -5,6 +5,13 @@
 
 auto callbacks::uninitialize(uninit mode) -> void
 {
+	if (dotnet::cor_debug_process5)
+	{
+		XSFD_DEBUG_LOG("!Releasing COR Debug Process instance 5.\n");
+		dotnet::cor_debug_process5->Release();
+		dotnet::cor_debug_process5 = nullptr;
+	}
+
 	if (dotnet::cor_debug_process)
 	{
 		XSFD_DEBUG_LOG("!Releasing COR Debug Process instance.\n");

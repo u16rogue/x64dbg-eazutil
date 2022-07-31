@@ -243,6 +243,14 @@ auto callbacks::initialize() -> void
 
 	XSFD_DEBUG_LOG("!Open virtual process for debugging @ 0x%p\n", dotnet::cor_debug_process);
 
+	constexpr IID IID_ICorDebugProcess5 = { 0x21e9d9c0, 0xfcb8, 0x11df, 0x8c, 0xff, 0x08, 0x00, 0x20, 0x0c ,0x9a, 0x66 };
+	if (dotnet::cor_debug_process->QueryInterface(IID_ICorDebugProcess5, reinterpret_cast<void **>(&dotnet::cor_debug_process5)) != S_OK)
+	{
+		xsfd::log("!ERROR: Failed to create COR debug process 5 instance.\n");
+		return;
+	}
+	XSFD_DEBUG_LOG("!Created COR debug process 5 instance @ 0x%p\n", dotnet::cor_debug_process5);
+
 	global::initialized = true;
 	_plugin_menuentrysetname(global::pluginHandle, menuid_initalize, "Re-Initialize");
 }
