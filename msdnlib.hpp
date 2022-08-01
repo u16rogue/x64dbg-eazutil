@@ -8,6 +8,8 @@
 #include <clrdata.h>
 //#include <cordebug.h>
 
+// TODO: move the rest of the library in here
+
 // [26/07/2022] Cant directly inherit from cordebug.h since im not using MSVC as a compiler
 typedef enum CorDebugPlatform
 {
@@ -1121,6 +1123,16 @@ public:
 	
 	virtual HRESULT STDMETHODCALLTYPE EnableNGENPolicy( 
 		/* [in] */ CorDebugNGENPolicy ePolicy) = 0;
+	
+};
+
+class ICorDebugAppDomainEnum : public ICorDebugEnum
+{
+public:
+	virtual HRESULT STDMETHODCALLTYPE Next( 
+		/* [in] */ ULONG celt,
+		/* [length_is][size_is][out] */ ICorDebugAppDomain *values[  ],
+		/* [out] */ ULONG *pceltFetched) = 0;
 	
 };
 
