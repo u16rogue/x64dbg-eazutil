@@ -53,14 +53,19 @@ add_library(
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(XSFDEU_FILE_EXT "dp64")
 	set(XSFDEU_ARCH_TXT "x64")
+	set(XSFDEU_ARCH2_TXT "x64")
 	target_compile_definitions(${PROJECT_NAME} PRIVATE XSFDEU_ARCH64=1)
 elseif (CMAKE_SIZEOF_VOID_P EQUAL 4)
 	set(XSFDEU_FILE_EXT "dp32")
 	set(XSFDEU_ARCH_TXT "x32")
+	set(XSFDEU_ARCH2_TXT "x86")
 	target_compile_definitions(${PROJECT_NAME} PRIVATE XSFDEU_ARCH32=1)
 else ()
 	message(FATAL_ERROR "Unsupported architecture (Invalid CMAKE_SIZEOF_VOID_P)")
 endif()
+
+set(XSFDEU_DOTNET_SDK_INCLUDE "${XSFDEU_DOTNET_SDK_PATH}/${XSFDEU_DOTNET_SDK_VER}/Include/um")
+set(XSFDEU_DOTNET_SDK_LIB "${XSFDEU_DOTNET_SDK_PATH}/${XSFDEU_DOTNET_SDK_VER}/Lib/um/${XSFDEU_ARCH2_TXT}")
 
 if (XSFDEU_DEBUG)
 	target_compile_definitions(
@@ -83,6 +88,7 @@ target_include_directories(
 	${PROJECT_NAME}
 	PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk"
+	"${XSFDEU_DOTNET_SDK_INCLUDE}"
 )
 
 target_link_libraries(
@@ -90,6 +96,8 @@ target_link_libraries(
 	PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}dbg.lib"
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}bridge.lib"
+	"${XSFDEU_DOTNET_SDK_LIB}/mscoree.lib"
+	"${XSFDEU_DOTNET_SDK_LIB}/corguids.lib"
 )
 
 # Auto copy build .dp to x64dbg path
