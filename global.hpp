@@ -4,7 +4,13 @@
 #include "msdnlib.hpp"
 
 #define XSFD_PLUG_NAME "eazutil"
-#define PLUG_EXPORT extern "C" __attribute__((dllexport))
+#if defined(__clang__)
+	#define PLUG_EXPORT extern "C" __attribute__((dllexport))
+#elif defined(_MSC_VER)
+	#define PLUG_EXPORT extern "C" __declspec(dllexport)
+#else
+	#error "Unsupported compiler - PLUG_EXPORT definition"
+#endif
 
 // TODO: namespace this
 constexpr int menuid_initalize = 1;

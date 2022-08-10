@@ -59,6 +59,7 @@ class ICorDebugThread;
 class ICorDebugFrame;
 class ICorDebugObjectValue;
 class ICorDebugType;
+class ICorDebugAppDomainEnum;
 
 MIDL_INTERFACE("FE06DC28-49FB-4636-A4A3-E80DB4AE116C")
 ICorDebugDataTarget : public IUnknown
@@ -179,7 +180,7 @@ public:
 		/* [in] */ LONG lLevel) = 0;
 	
 	virtual HRESULT STDMETHODCALLTYPE EnumerateAppDomains( 
-		/* [out] */ /*ICorDebugAppDomainEnum*/ int **ppAppDomains) = 0;
+		/* [out] */ ICorDebugAppDomainEnum **ppAppDomains) = 0;
 	
 	virtual HRESULT STDMETHODCALLTYPE GetObject( 
 		/* [out] */ /*ICorDebugValue*/ int **ppObject) = 0;
