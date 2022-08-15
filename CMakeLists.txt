@@ -32,6 +32,8 @@ if (NOT XSFDEU_DOTNET_SDK_VER)
 	message(FATAL_ERROR "Provide a dotNet version SDK to XSFDEU_DOTNET_SDK_VER variable")
 endif()
 
+add_subdirectory("deps/wxWidgets")
+
 add_library(
 	${PROJECT_NAME}
 	SHARED
@@ -94,6 +96,7 @@ target_include_directories(
 target_link_libraries(
 	${PROJECT_NAME}
 	PRIVATE
+	wxWidgets
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}dbg.lib"
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}bridge.lib"
 	"${XSFDEU_DOTNET_SDK_LIB}/mscoree.lib"
