@@ -5,7 +5,7 @@
 #include "callbacks/callbacks.hpp"
 
 
-PLUG_EXPORT auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
+static auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 {
 	PLUG_CB_MENUENTRY * s = reinterpret_cast<decltype(s)>(_s);
 
@@ -22,7 +22,7 @@ PLUG_EXPORT auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 	return;
 }
 
-PLUG_EXPORT auto plug_cb_detach(CBTYPE btype, void * _s) -> void
+static auto plug_cb_detach(CBTYPE btype, void * _s) -> void
 {
 	PLUG_CB_DETACH * s = reinterpret_cast<decltype(s)>(_s);
 	callbacks::uninitialize(callbacks::uninit::PARTIAL);

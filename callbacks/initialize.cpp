@@ -1,4 +1,4 @@
-#include "callbacks.hpp"
+﻿#include "callbacks.hpp"
 #include <string_view>
 #include <filesystem>
 #include <string>
@@ -185,7 +185,7 @@ auto callbacks::initialize() -> void
 	HANDLE mod_snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
 	if (mod_snap == INVALID_HANDLE_VALUE)
 	{
-		xsfd::log("!Could not create module snapshot of target process.\n");
+		xsfd::log("!Could not create module snapshot of target process. GetLastError: %d\n", GetLastError());
 		return;
 	}
 
@@ -254,6 +254,144 @@ auto callbacks::initialize() -> void
 
 	// Test
 
-	// Enumerate domains
-	ICorDebugAppDomainEnum * appdomain = nullptr;
+	#if (1)
+	{
+		xsfd::log("!Domain enumeration.\n");
+		// Domains
+		ICorDebugAppDomainEnum * appdomain = nullptr;
+		if (dotnet::cor_debug_process->EnumerateAppDomains(&appdomain) != S_OK)
+			return;
+
+		XSFD_DEFER { appdomain->Release(); };
+
+		ULONG domain_count = 0;
+		appdomain->GetCount(&domain_count);
+		xsfd::log("!Domain count: %d\n", domain_count);
+		auto domains = std::make_unique<ICorDebugAppDomain*[]>(domain_count);
+		if (!domains)
+		{
+			xsfd::log("!Domain container alloc failed.\n");
+			return;
+		}
+
+		XSFD_DEFER {
+			for (int i = 0; i < domain_count; ++i)
+				domains[i]->Release();
+		};
+
+		ULONG domain_count_fetched = 0;
+		if (appdomain->Next(domain_count, domains.get(), &domain_count_fetched) != S_OK || domain_count != domain_count_fetched)
+		{
+			xsfd::log("!Domain fetch failed (%d:%d)\n", domain_count, domain_count_fetched);
+			return;
+		}
+
+		xsfd::log("!Starting dump...\n");
+
+		for (int i_domain = 0; i_domain < domain_count; ++i_domain)
+		{
+			ICorDebugAppDomain * domain = domains[i_domain];
+			WCHAR nbuff[128] = {};
+			ULONG32 nlen = 0;
+
+			if (domain->GetName(127, &nlen, nbuff) != S_OK)
+			{
+				xsfd::log("!ICorDebugAppDomain::GetName failed.\n");
+				continue;
+			}
+			xsfd::log("*+[%s:%d]\n", xsfd::wc2u8(nbuff).c_str(), i_domain);
+			xsfd::log(" |\n"
+					  " +--Assemblies\n");
+
+			// Assembly
+			ICorDebugAssemblyEnum * assembly_enum = nullptr;
+			if (domain->EnumerateAssemblies(&assembly_enum) != S_OK)
+			{
+				xsfd::log("!ICorDebugAppDomain::EnumerateAssemblies failed.\n");
+				continue;
+			}
+			XSFD_DEFER { assembly_enum->Release(); };
+
+			ULONG assembly_fetched = 0;
+			ICorDebugAssembly * assembly = nullptr;
+			while (assembly_enum->Next(1, &assembly, &assembly_fetched) == S_OK && assembly_fetched == 1)
+			{
+				XSFD_DEFER { assembly->Release(); };
+				if (assembly->GetName(127, &nlen, nbuff) != S_OK)
+				{
+					xsfd::log("!ICorDebugAssembly::GetName failed.\n");
+					continue;
+				}
+
+				xsfd::log(" |  +--%s (0x%p)\n", xsfd::wc2u8(nbuff).c_str(), assembly);
+				xsfd::log(" |  |  +--Modules\n");
+
+				// Modules
+				ICorDebugModuleEnum * module_enum = nullptr;
+				if (assembly->EnumerateModules(&module_enum) != S_OK)
+				{
+					xsfd::log("!ICorDebugAssembly::EnumerateModules failed.\n");
+					continue;
+				}
+				XSFD_DEFER { module_enum->Release(); };
+
+				ICorDebugModule * mod = nullptr;
+				ULONG mod_fetched = 0;
+				while (module_enum->Next(1, &mod, &mod_fetched) == S_OK && mod_fetched == 1)
+				{
+					XSFD_DEFER { mod->Release(); };
+					CORDB_ADDRESS address = 0;
+					if (mod->GetName(127, &nlen, nbuff) != S_OK || mod->GetBaseAddress(&address) != S_OK)
+					{
+						xsfd::log("!ICorDebugModule::GetName failed.\n");
+						continue;
+					}
+
+					xsfd::log(" |  |     +--%s (0x%x)\n", xsfd::wc2u8(nbuff).c_str(), address);
+
+					// Meta data
+					IMetaDataImport * metadata = nullptr;
+					if (mod->GetMetaDataInterface(IID_IMetaDataImport, reinterpret_cast<IUnknown **>(&metadata)) != S_OK)
+					{
+						xsfd::log("!ICorDebugModule::GetMetaDataInterface failed.\n");
+						continue;
+					}
+					XSFD_DEFER { metadata->Release(); };
+
+					// Type definitions
+					HCORENUM hce = 0;
+					ULONG td_count = 0;
+
+					metadata->EnumTypeDefs(&hce, nullptr, 0, nullptr);
+					if (metadata->CountEnum(hce, &td_count) != S_OK)
+					{
+						xsfd::log("!IMetaDataImport::CountEnum failed.\n");
+						continue;
+					}
+
+					auto typedefs = std::make_unique<mdTypeDef[]>(td_count);
+					if (metadata->EnumTypeDefs(&hce, typedefs.get(), td_count, &td_count) != S_OK)
+					{
+						xsfd::log("!IMetaDataImport::EnumTypeDefs failed B.\n");
+						continue;
+					}
+
+					for (int i_tds = 0; i_tds < td_count; ++i_tds)
+					{
+						// Type definition props
+						ULONG td_pch = 0;
+						DWORD td_flags = 0;
+						mdToken ext;
+						if (metadata->GetTypeDefProps(typedefs[i_tds], nbuff, sizeof(nbuff) / sizeof(nbuff[0]), &td_pch, &td_flags, &ext) != S_OK)
+						{
+							xsfd::log("!IMetaDataImport::GetTypeDefProps failed.\n");
+							continue;
+						}
+						xsfd::log(" |  |        +--%s\n", xsfd::wc2u8(nbuff).c_str());
+					}
+				}
+			}
+		}
+	}
+	#endif
 }

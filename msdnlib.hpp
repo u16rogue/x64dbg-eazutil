@@ -3,6 +3,7 @@
 // This serves as an alternative to some MS dotNet libraries
 
 #include <Windows.h>
+#include <cor.h>
 #include <mscoree.h>
 #include <metahost.h>
 #include <clrdata.h>
@@ -27,15 +28,15 @@ typedef enum CorDebugPlatform
 
 typedef UINT32 mdToken;
 typedef mdToken mdModule;
-typedef SIZE_T mdScope;
+// typedef SIZE_T mdScope;
 typedef mdToken mdTypeDef;
 typedef mdToken mdSourceFile;
 typedef mdToken mdMemberRef;
 typedef mdToken mdMethodDef;
 typedef mdToken mdFieldDef;
 typedef mdToken mdSignature;
-typedef ULONG CorElementType;
-typedef SIZE_T PCCOR_SIGNATURE;
+//typedef ULONG CorElementType;
+//typedef SIZE_T PCCOR_SIGNATURE;
 //typedef SIZE_T LPDEBUG_EVENT;
 //typedef SIZE_T LPSTARTUPINFOW;
 //typedef SIZE_T LPPROCESS_INFORMATION;

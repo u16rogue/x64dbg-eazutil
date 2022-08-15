@@ -4,6 +4,7 @@
 #include "msdnlib.hpp"
 
 #define XSFD_PLUG_NAME "eazutil"
+
 #if defined(__clang__)
 	#define PLUG_EXPORT extern "C" __attribute__((dllexport))
 #elif defined(_MSC_VER)
