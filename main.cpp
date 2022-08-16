@@ -4,7 +4,6 @@
 #include "global.hpp"
 #include "callbacks/callbacks.hpp"
 
-
 static auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 {
 	PLUG_CB_MENUENTRY * s = reinterpret_cast<decltype(s)>(_s);
