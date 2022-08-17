@@ -15,6 +15,7 @@
 
 // TODO: namespace this
 constexpr int menuid_initalize = 1;
+constexpr int menuid_menuvis   = 2;
 
 namespace global
 {

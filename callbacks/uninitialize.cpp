@@ -2,9 +2,13 @@
 
 #include "../global.hpp"
 #include "../xsfd_utils.hpp"
+#include "../menu.hpp"
 
 auto callbacks::uninitialize(uninit mode) -> void
 {
+	if (mode == uninit::FULL)
+		menu::dispose();
+
 	if (dotnet::cor_debug_process5)
 	{
 		XSFD_DEBUG_LOG("!Releasing COR Debug Process instance 5.\n");

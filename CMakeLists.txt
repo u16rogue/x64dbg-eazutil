@@ -32,6 +32,8 @@ if (NOT XSFDEU_DOTNET_SDK_VER)
 	message(FATAL_ERROR "Provide a dotNet version SDK to XSFDEU_DOTNET_SDK_VER variable")
 endif()
 
+add_subdirectory("deps/kita")
+
 add_library(
 	${PROJECT_NAME}
 	SHARED
@@ -45,10 +47,13 @@ add_library(
 	"xsfd_utils.hpp"
 	"xsfd_utils.cpp"
 
+	"menu.hpp"
+	"menu.cpp"
+
 	"callbacks/callbacks.hpp"
 	"callbacks/initialize.cpp"	
 	"callbacks/uninitialize.cpp"
-)
+ )
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(XSFDEU_FILE_EXT "dp64")
@@ -98,6 +103,7 @@ target_link_libraries(
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}bridge.lib"
 	"${XSFDEU_DOTNET_SDK_LIB}/mscoree.lib"
 	"${XSFDEU_DOTNET_SDK_LIB}/corguids.lib"
+	kita
 )
 
 # Auto copy build .dp to x64dbg path

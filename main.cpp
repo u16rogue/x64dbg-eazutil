@@ -3,6 +3,7 @@
 #include "xsfd_utils.hpp"
 #include "global.hpp"
 #include "callbacks/callbacks.hpp"
+#include "menu.hpp"
 
 static auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 {
@@ -12,6 +13,10 @@ static auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 	{
 		case menuid_initalize:
 			callbacks::initialize();
+			break;
+		case menuid_menuvis:
+			if (menu::valid())
+				menu::toggle();
 			break;
 		default:
 			xsfd::log("!WARNING: Received menuentry callback but was not handled");
@@ -73,8 +78,9 @@ PLUG_EXPORT auto plugsetup(PLUG_SETUPSTRUCT * s) -> void
 		return;
 	}
 
-	if (!_plugin_menuaddentry(global::hMenu, menuid_initalize, "Initialize"))
-	{
+	if (!_plugin_menuaddentry(global::hMenu, menuid_initalize, "Initialize")
+	||  !_plugin_menuaddentry(global::hMenu, menuid_menuvis, "Toggle menu")
+	) {
 		xsfd::log("!Failed to add initialization menu entry!\n");
 		return;
 	}

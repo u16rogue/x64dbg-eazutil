@@ -9,6 +9,7 @@
 
 #include "../global.hpp"
 #include "../xsfd_utils.hpp"
+#include "../menu.hpp"
 
 static auto get_dotnet_path(std::filesystem::path & path_out, int (&ver_out)[3]) -> bool
 {
@@ -392,6 +393,11 @@ auto callbacks::initialize() -> void
 				}
 			}
 		}
+
+		menu::add_render([](kita::events::on_render * e) {
+			ImGui::Text("Hello world!");	
+		});
+		menu::show();
 	}
 	#endif
 }
