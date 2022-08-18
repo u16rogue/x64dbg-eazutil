@@ -263,9 +263,17 @@ auto callbacks::initialize() -> void
 	#endif
 }
 
+struct methods_info_t
+{
+	std::string name;
+	PCCOR_SIGNATURE sig;
+	ULONG rva;
+};
+
 struct typedef_info_t
 {
 	std::string name;
+	std::vector<methods_info_t> methods;
 };
 
 struct modules_info_t
@@ -308,17 +316,23 @@ auto dump_test(kita::events::on_render * e) -> void
 				if (!ImGui::TreeNode(modules.name.c_str()))
 					continue;
 
-				ImGui::BeginChild("Type definitions:");
+				ImGui::Text("Type definitions:");
 				for (const auto & td : modules.typedefs)
-					ImGui::Text(td.name.c_str());
-				ImGui::EndChild();
+				{
+					if (!ImGui::TreeNode(td.name.c_str()))
+						continue;
 
+					ImGui::BeginChild("Methods:");
+					for (const auto & mth : td.methods)
+						ImGui::Text("%s - RVA: 0x%p", mth.name.c_str(), mth.rva);
+					ImGui::EndChild();
+
+					ImGui::TreePop();
+				}
 				ImGui::TreePop();
 			}
-
 			ImGui::TreePop();
 		}
-
 		ImGui::TreePop();
 	}
 
@@ -389,7 +403,8 @@ auto dump_test(kita::events::on_render * e) -> void
 				continue;
 			}
 
-			auto & v_assembly = v_domain.assemblies.emplace_back(assembly_info_t { xsfd::wc2u8(nbuff), {} });
+			auto s_assembly = xsfd::wc2u8(nbuff);
+			auto & v_assembly = v_domain.assemblies.emplace_back(assembly_info_t { s_assembly.substr(s_assembly.find_last_of('\\') + 1), {} });
 
 			// Modules
 			ICorDebugModuleEnum * module_enum = nullptr;
@@ -424,20 +439,20 @@ auto dump_test(kita::events::on_render * e) -> void
 				XSFD_DEFER { metadata->Release(); };
 
 				// Type definitions
-				HCORENUM hce = 0;
+				HCORENUM td_hce = 0;
 				ULONG td_count = 0;
 
-				metadata->EnumTypeDefs(&hce, nullptr, 0, nullptr);
-				if (metadata->CountEnum(hce, &td_count) != S_OK)
+				metadata->EnumTypeDefs(&td_hce, nullptr, 0, nullptr);
+				if (metadata->CountEnum(td_hce, &td_count) != S_OK)
 				{
 					xsfd::log("!IMetaDataImport::CountEnum failed.\n");
 					continue;
 				}
 
 				auto typedefs = std::make_unique<mdTypeDef[]>(td_count);
-				if (metadata->EnumTypeDefs(&hce, typedefs.get(), td_count, &td_count) != S_OK)
+				if (!typedefs || metadata->EnumTypeDefs(&td_hce, typedefs.get(), td_count, &td_count) != S_OK)
 				{
-					xsfd::log("!IMetaDataImport::EnumTypeDefs failed B.\n");
+					xsfd::log("!IMetaDataImport::EnumTypeDefs failed.\n");
 					continue;
 				}
 
@@ -453,7 +468,47 @@ auto dump_test(kita::events::on_render * e) -> void
 						continue;
 					}
 
-					v_modules.typedefs.emplace_back(typedef_info_t { xsfd::wc2u8(nbuff) });
+					auto & v_typedefs = v_modules.typedefs.emplace_back(typedef_info_t { xsfd::wc2u8(nbuff) });
+
+					// Methods
+					HCORENUM mth_hce = 0;
+					ULONG mth_count = 0;
+					metadata->EnumMethods(&mth_hce, typedefs[i_tds], nullptr, 0, nullptr);
+					if (metadata->CountEnum(mth_hce, &mth_count) != S_OK)
+					{
+						xsfd::log("!IMetaDataImport::CountEnum failed.\n");
+						continue;
+					}
+
+					auto methods = std::make_unique<mdMethodDef[]>(mth_count);
+					if (!methods || metadata->EnumMethods(&mth_hce, typedefs[i_tds], methods.get(), mth_count, &mth_count) != S_OK)
+					{
+						xsfd::log("!IMetaDataImport::EnumMethods failed.\n");
+						continue;
+					}
+
+					for (int i_mth = 0; i_mth < mth_count; ++i_mth)
+					{
+						mdTypeDef mdtd = 0;
+						ULONG pchmth = 0;
+						DWORD attr = 0;
+						PCCOR_SIGNATURE sig = 0;
+						ULONG sigblob = 0;
+						ULONG rva = 0;
+						DWORD flags = 0;
+						if (metadata->GetMethodProps(methods[i_mth], &mdtd, nbuff, 128, &pchmth, &attr, &sig, &sigblob, &rva, &flags) != S_OK)
+						{
+							xsfd::log("!IMetaDataImport::GetMethodProps failed.\n");
+							continue;
+						}
+
+						methods_info_t mi = {};
+						mi.name = xsfd::wc2u8(nbuff);
+						mi.rva  = rva;
+						mi.sig  = sig;
+						v_typedefs.methods.emplace_back(mi);
+					}
+
 				}
 			}
 		}
