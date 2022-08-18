@@ -71,14 +71,11 @@ auto menu::valid() -> bool
 
 auto menu::toggle() -> bool
 {
-	return visible = !visible;
+	return visible ? menu::hide() : menu::show();
 }
 
 auto menu::show() -> bool
 {
-	if (render_cbs.empty())
-		return false;
-
 	if (!render_thread)
 	{
 		render_thread = std::make_unique<std::thread>(render_proc);
