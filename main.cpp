@@ -26,9 +26,8 @@ static auto plug_cb_menuentry(CBTYPE btype, void * _s) -> void
 	return;
 }
 
-static auto plug_cb_detach(CBTYPE btype, void * _s) -> void
+static auto plug_cb_detach_and_stop(CBTYPE btype, void * _s) -> void
 {
-	PLUG_CB_DETACH * s = reinterpret_cast<decltype(s)>(_s);
 	callbacks::uninitialize(callbacks::uninit::PARTIAL);
 }
 
@@ -86,7 +85,8 @@ PLUG_EXPORT auto plugsetup(PLUG_SETUPSTRUCT * s) -> void
 	}
 
 	_plugin_registercallback(global::pluginHandle, CB_MENUENTRY, plug_cb_menuentry);
-	_plugin_registercallback(global::pluginHandle, CB_DETACH, plug_cb_detach);
+	_plugin_registercallback(global::pluginHandle, CB_DETACH,    plug_cb_detach_and_stop);
+	_plugin_registercallback(global::pluginHandle, CB_STOPDEBUG, plug_cb_detach_and_stop);
 }
 
 PLUG_EXPORT auto plugstop() -> void
