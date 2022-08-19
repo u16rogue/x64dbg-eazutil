@@ -5,7 +5,7 @@
 #include "xsfd_utils.hpp"
 
 static std::unique_ptr<kita::kita_instance> instance;
-static std::vector<kita::events::details::on_render_cb_t> render_cbs;
+static std::vector<std::pair<kita::events::details::on_render_cb_t, const char *>> render_cbs;
 static std::unique_ptr<std::thread> render_thread;
 
 static bool visible = false;
@@ -13,8 +13,18 @@ static bool render_proc_running = false;
 
 static auto render_dispatch(kita::events::on_render * e) -> void
 {
-	 for (auto & f : render_cbs)
-		 f(e);
+	if (!ImGui::BeginTabBar("#tabitems"))
+		return;
+
+	for (auto & [f, tab_title] : render_cbs)
+	{
+		if(!ImGui::BeginTabItem(tab_title))
+			continue;
+		f(e);
+		ImGui::EndTabItem();
+	}
+
+	ImGui::EndTabBar();
 }
 
 static auto render_proc() -> void
@@ -113,10 +123,17 @@ auto menu::dispose() -> bool
 	return true;
 }
 
-auto menu::add_render(kita::events::details::on_render_cb_t f) -> bool
+auto menu::add_render(kita::events::details::on_render_cb_t f, const char * title) -> bool
 {
-	if (std::find(render_cbs.begin(), render_cbs.end(), f) != render_cbs.end())
-		return true;	
-	render_cbs.emplace_back(f);
+	for (auto & [fn, t] : render_cbs)
+	{
+		if (fn == f)
+		{
+			t = title;
+			return true;
+		}
+	}
+
+	render_cbs.emplace_back(f, title);
 	return true;
 }

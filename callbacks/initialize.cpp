@@ -258,7 +258,7 @@ auto callbacks::initialize() -> void
 	// Test
 
 	#if (1)
-		menu::add_render(dump_test);
+		menu::add_render(dump_test, "Test dump");
 		menu::show();
 	#endif
 }
@@ -518,7 +518,7 @@ auto dump_test(kita::events::on_render * e) -> void
 						ICorDebugCode * mth_ilcode = nullptr;
 						if (mth_fn->GetILCode(&mth_ilcode) != S_OK)
 						{
-							xsfd::log("!ICorDebugFunction::GetILCode failed.\n");
+							//xsfd::log("!ICorDebugFunction::GetILCode failed.\n");
 							continue;
 						}
 						XSFD_DEFER { mth_ilcode->Release(); };
@@ -526,21 +526,21 @@ auto dump_test(kita::events::on_render * e) -> void
 						CORDB_ADDRESS il_address = 0;
 						if (mth_ilcode->GetAddress(&il_address) != S_OK)
 						{
-							xsfd::log("!ICorDebugCode::GetAddress failed.\n");
+							//xsfd::log("!ICorDebugCode::GetAddress failed.\n");
 							continue;
 						}
 						
 						ICorDebugCode * mth_natcode = nullptr;
 						if (mth_fn->GetNativeCode(&mth_natcode) != S_OK)
 						{
-							xsfd::log("!ICorDebugFunction::GetNativeCode failed.\n");
+							//xsfd::log("!ICorDebugFunction::GetNativeCode failed.\n");
 						}
 						XSFD_DEFER { if (mth_natcode) mth_natcode->Release(); };
 
 						CORDB_ADDRESS native_address = 0;
 						if (mth_natcode && mth_natcode->GetAddress(&native_address) != S_OK)
 						{
-							xsfd::log("!ICorDebugCode::GetAddress failed.\n");
+							//xsfd::log("!ICorDebugCode::GetAddress failed.\n");
 						}
 
 						methods_info_t mi = {};

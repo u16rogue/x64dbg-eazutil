@@ -10,5 +10,5 @@ namespace menu
 	auto hide() -> bool;
 	auto dispose() -> bool;
 
-	auto add_render(kita::events::details::on_render_cb_t f) -> bool;
+	auto add_render(kita::events::details::on_render_cb_t f, const char * title) -> bool;
 }
