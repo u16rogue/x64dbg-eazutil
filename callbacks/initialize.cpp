@@ -327,7 +327,18 @@ auto dump_test(kita::events::on_render * e) -> void
 
 					ImGui::BeginChild("Methods:");
 					for (const auto & mth : td.methods)
-						ImGui::Text("%s - RVA: 0x%p - IL: 0x%p - Native: 0x%p", mth.name.c_str(), mth.rva, mth.il_address, mth.native_address);
+					{
+						ImGui::Text("%s - RVA: 0x%p - IL: 0x%p - Native:", mth.name.c_str(), mth.rva, mth.il_address);
+						ImGui::SameLine();
+						ImGui::Text("0x%p", mth.native_address);
+						if (mth.native_address)
+						{
+							if (ImGui::IsItemClicked())
+								GuiDisasmAt((duint)mth.native_address, 0);
+							if (ImGui::IsItemHovered())
+								ImGui::SetTooltip("Go to address in disassembler");
+						}
+					}
 					ImGui::EndChild();
 
 					ImGui::TreePop();
@@ -338,6 +349,11 @@ auto dump_test(kita::events::on_render * e) -> void
 		}
 		ImGui::TreePop();
 	}
+
+	if (ImGui::Button("Clear"))
+		v_domains.clear();
+
+	ImGui::SameLine();
 
 	if (!ImGui::Button("Dump"))
 		return;
@@ -488,7 +504,7 @@ auto dump_test(kita::events::on_render * e) -> void
 					auto methods = std::make_unique<mdMethodDef[]>(mth_count);
 					if (!methods || metadata->EnumMethods(&mth_hce, typedefs[i_tds], methods.get(), mth_count, &mth_count) != S_OK)
 					{
-						xsfd::log("!IMetaDataImport::EnumMethods failed.\n");
+						//xsfd::log("!IMetaDataImport::EnumMethods failed.\n");
 						continue;
 					}
 
@@ -503,14 +519,14 @@ auto dump_test(kita::events::on_render * e) -> void
 						DWORD flags = 0;
 						if (metadata->GetMethodProps(methods[i_mth], &mdtd, nbuff, 128, &pchmth, &attr, &sig, &sigblob, &rva, &flags) != S_OK)
 						{
-							xsfd::log("!IMetaDataImport::GetMethodProps failed.\n");
+							//xsfd::log("!IMetaDataImport::GetMethodProps failed.\n");
 							continue;
 						}
 
 						ICorDebugFunction * mth_fn = nullptr;
 						if (mod->GetFunctionFromToken(methods[i_mth], &mth_fn) != S_OK)
 						{
-							xsfd::log("!IMetaDataImport::GetFunctionFromToken failed.\n");
+							//xsfd::log("!IMetaDataImport::GetFunctionFromToken failed.\n");
 							continue;
 						}
 						XSFD_DEFER { mth_fn->Release(); };
