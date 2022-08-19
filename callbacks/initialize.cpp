@@ -268,6 +268,9 @@ struct methods_info_t
 	std::string name;
 	PCCOR_SIGNATURE sig;
 	ULONG rva;
+
+	void * il_address;
+	void * native_address;
 };
 
 struct typedef_info_t
@@ -324,7 +327,7 @@ auto dump_test(kita::events::on_render * e) -> void
 
 					ImGui::BeginChild("Methods:");
 					for (const auto & mth : td.methods)
-						ImGui::Text("%s - RVA: 0x%p", mth.name.c_str(), mth.rva);
+						ImGui::Text("%s - RVA: 0x%p - IL: 0x%p - Native: 0x%p", mth.name.c_str(), mth.rva, mth.il_address, mth.native_address);
 					ImGui::EndChild();
 
 					ImGui::TreePop();
@@ -338,6 +341,8 @@ auto dump_test(kita::events::on_render * e) -> void
 
 	if (!ImGui::Button("Dump"))
 		return;
+
+	v_domains.clear();
 
 	xsfd::log("!Dumping...\n");
 	// Domains
@@ -502,10 +507,48 @@ auto dump_test(kita::events::on_render * e) -> void
 							continue;
 						}
 
+						ICorDebugFunction * mth_fn = nullptr;
+						if (mod->GetFunctionFromToken(methods[i_mth], &mth_fn) != S_OK)
+						{
+							xsfd::log("!IMetaDataImport::GetFunctionFromToken failed.\n");
+							continue;
+						}
+						XSFD_DEFER { mth_fn->Release(); };
+
+						ICorDebugCode * mth_ilcode = nullptr;
+						if (mth_fn->GetILCode(&mth_ilcode) != S_OK)
+						{
+							xsfd::log("!ICorDebugFunction::GetILCode failed.\n");
+							continue;
+						}
+						XSFD_DEFER { mth_ilcode->Release(); };
+
+						CORDB_ADDRESS il_address = 0;
+						if (mth_ilcode->GetAddress(&il_address) != S_OK)
+						{
+							xsfd::log("!ICorDebugCode::GetAddress failed.\n");
+							continue;
+						}
+						
+						ICorDebugCode * mth_natcode = nullptr;
+						if (mth_fn->GetNativeCode(&mth_natcode) != S_OK)
+						{
+							xsfd::log("!ICorDebugFunction::GetNativeCode failed.\n");
+						}
+						XSFD_DEFER { if (mth_natcode) mth_natcode->Release(); };
+
+						CORDB_ADDRESS native_address = 0;
+						if (mth_natcode && mth_natcode->GetAddress(&native_address) != S_OK)
+						{
+							xsfd::log("!ICorDebugCode::GetAddress failed.\n");
+						}
+
 						methods_info_t mi = {};
 						mi.name = xsfd::wc2u8(nbuff);
 						mi.rva  = rva;
 						mi.sig  = sig;
+						mi.il_address = (void*)il_address;
+						mi.native_address = (void*)native_address;
 						v_typedefs.methods.emplace_back(mi);
 					}
 
