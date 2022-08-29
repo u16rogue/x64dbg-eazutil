@@ -263,6 +263,22 @@ auto callbacks::initialize() -> void
 	#endif
 }
 
+/*
+* RuntimeHelpers.PrepareMethod() - v4.0.30319
+* 89 8D ? ? ? ? 33 DB 85 C9 75 22 68 ? ? ? ? 53 6A 04 - \x89\x8D\x00\x00\x00\x00\x33\xDB\x85\xC9\x75\x22\x68\x00\x00\x00\x00\x53\x6A\x04 xx????xxxxxxx????xxx @ clr.dll
+* 68 98 00 00 00                                  push    98h ; '˜'
+* B8 94 3F 6E 10                                  mov     eax, offset sub_106E3F94
+* E8 96 CE B6 FF                                  call    sub_10010C95
+* 8B F2                                           mov     esi, edx
+* 89 B5 E0 FF FF FF                               mov     [ebp-20h], esi
+* B8 F0 3D 4A 10                                  mov     eax, offset RuntimeHelpers_PrepareMethod
+* 89 85 D0 FF FF FF                               mov     [ebp-30h], eax
+* 89 8D CC FF FF FF                               mov     [ebp-34h], ecx                            <<<
+* 33 DB                                           xor     ebx, ebx
+* 85 C9                                           test    ecx, ecx
+* 75 22                                           jnz     short loc_104A3E40
+*/
+
 struct methods_info_t
 {
 	std::string name;
