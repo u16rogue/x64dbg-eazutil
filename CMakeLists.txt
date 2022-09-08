@@ -41,6 +41,9 @@ add_library(
     "msdnlib.hpp"
 	"msdnlib.cpp"	
 
+	"dotnet.hpp"
+	"dotnet.cpp"
+
 	"global.hpp"
 	"main.cpp"
 
