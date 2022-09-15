@@ -9,6 +9,72 @@
 #include <clrdata.h>
 //#include <cordebug.h>
 
+namespace xsfd
+{
+	template <typename T>
+	class ms_releasable
+	{
+		using self_t = ms_releasable<T>;
+
+	public:
+		ms_releasable()
+			: instance(nullptr)
+		{}
+
+		ms_releasable(T *& i)
+			// : instance(i)
+		{
+			instance = i;
+			i = nullptr;
+		}
+
+		~ms_releasable()
+		{
+			instance->Release();
+			instance = nullptr;
+		}
+
+		// Copy
+		auto operator=(const self_t & rhs) -> self_t &
+		{
+			if (instance)
+			{
+				instance->Release();
+				instance = nullptr;
+			}
+
+			if (rhs.instance->AddRef())
+				instance = rhs.instance;
+		}
+
+		// Move
+		auto operator=(self_t && rhs) -> self_t &
+		{
+			if (instance)
+			{
+				instance->Release();
+				instance = nullptr;
+			}
+
+			instance = rhs.instance;
+			return *this;
+		}
+
+		auto operator->() -> T *
+		{
+			return instance;
+		}
+
+		auto operator*() -> T *&
+		{
+			return instance;
+		}
+
+	private:
+		T * instance;
+	};
+}
+
 // TODO: move the rest of the library in here
 
 // [26/07/2022] Cant directly inherit from cordebug.h since im not using MSVC as a compiler
