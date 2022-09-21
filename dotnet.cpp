@@ -77,6 +77,21 @@ static auto get_dotnet_path(std::filesystem::path & path_out, int (&ver_out)[3])
 	return true;
 }
 
+/*
+* RuntimeHelpers.PrepareMethod() - v4.0.30319
+* 89 8D ? ? ? ? 33 DB 85 C9 75 22 68 ? ? ? ? 53 6A 04 - \x89\x8D\x00\x00\x00\x00\x33\xDB\x85\xC9\x75\x22\x68\x00\x00\x00\x00\x53\x6A\x04 xx????xxxxxxx????xxx @ clr.dll
+* 68 98 00 00 00                                  push    98h ; '˜'
+* B8 94 3F 6E 10                                  mov     eax, offset sub_106E3F94
+* E8 96 CE B6 FF                                  call    sub_10010C95
+* 8B F2                                           mov     esi, edx
+* 89 B5 E0 FF FF FF                               mov     [ebp-20h], esi
+* B8 F0 3D 4A 10                                  mov     eax, offset RuntimeHelpers_PrepareMethod
+* 89 85 D0 FF FF FF                               mov     [ebp-30h], eax
+* 89 8D CC FF FF FF                               mov     [ebp-34h], ecx                            <<<
+* 33 DB                                           xor     ebx, ebx
+* 85 C9                                           test    ecx, ecx
+* 75 22                                           jnz     short loc_104A3E40
+*/
 static auto dotnet_get_preparemethod_adr(const MODULEENTRY32 & clr) -> void *
 {
 	if (!clr.modBaseAddr || !clr.modBaseSize)
@@ -146,7 +161,6 @@ auto dotnet::initialize() -> bool
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------ 
 	// Meta host
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------ 
-	
 	if (!meta_host)
 	{
 		if (_CLRCreateInstance(CLSID_CLRMetaHost, IID_ICLRMetaHost, reinterpret_cast<LPVOID *>(&meta_host)) != S_OK)
@@ -302,9 +316,11 @@ auto dotnet::initialize() -> bool
 	}
 	XSFD_DEBUG_LOG("!Created COR debug process 5 instance @ 0x%p\n", cor_debug_process5);
 
+	#if 0
 	prepare_method = dotnet_get_preparemethod_adr(me_clr);
 	if (!prepare_method)
 		return false;
+	#endif
 
 	return true;
 }
@@ -494,8 +510,8 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 					auto & v_typedefs = v_modules.typedefs.emplace_back(typedef_info_t { xsfd::wc2u8(nbuff) });
 
 					// Methods
-					HCORENUM mth_hce = 0;
-					ULONG mth_count = 0;
+					HCORENUM mth_hce   = 0;
+					ULONG    mth_count = 0;
 					metadata->EnumMethods(&mth_hce, typedefs[i_tds], nullptr, 0, nullptr);
 					if (metadata->CountEnum(mth_hce, &mth_count) != S_OK)
 						continue;
@@ -506,13 +522,14 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 
 					for (int i_mth = 0; i_mth < mth_count; ++i_mth)
 					{
-						mdTypeDef mdtd = 0;
-						ULONG pchmth = 0;
-						DWORD attr = 0;
-						PCCOR_SIGNATURE sig = 0;
-						ULONG sigblob = 0;
-						ULONG rva = 0;
-						DWORD flags = 0;
+						PCCOR_SIGNATURE sig     = 0;
+						mdTypeDef       mdtd    = 0;
+						ULONG           pchmth  = 0;
+						DWORD           attr    = 0;
+						ULONG           sigblob = 0;
+						ULONG           rva     = 0;
+						DWORD           flags   = 0;
+
 						if (metadata->GetMethodProps(methods[i_mth], &mdtd, nbuff, 128, &pchmth, &attr, &sig, &sigblob, &rva, &flags) != S_OK)
 							continue;
 
@@ -537,6 +554,7 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 						XSFD_DEFER { if (mth_natcode) mth_natcode->Release(); };
 
 						methods_info_t mi = {};
+						mi.md_methoddef = methods[i_mth];
 						mi.name = xsfd::wc2u8(nbuff);
 						mi.rva  = rva;
 						mi.sig  = sig;

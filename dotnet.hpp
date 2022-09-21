@@ -9,6 +9,7 @@ namespace dotnet
 {
 	struct methods_info_t
 	{
+		mdMethodDef md_methoddef;
 		std::string name;
 		PCCOR_SIGNATURE sig;
 		ULONG rva;

@@ -35,8 +35,3 @@ namespace global
 	inline int    hMenuDump    = 0;
 	inline int    hMenuStack   = 0;
 }
-
-namespace dotnet
-{
-	
-}
