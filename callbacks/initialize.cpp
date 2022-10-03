@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string>
 #include <memory>
+#include <future>
 
 #include "../dotnet.hpp"
 
@@ -66,19 +67,26 @@ auto dump_test(kita::events::on_render * e) -> void
 		ImGui::TreePop();
 	}
 
+	static std::future<void> async_dump;
+
 	if (ImGui::Button("Clear"))
+	{
+		async_dump = std::future<void> {};
 		v_domains.clear();
+	}
 
 	ImGui::SameLine();
 
-	if (!ImGui::Button("Dump"))
-		return;
-
-	v_domains.clear();
-
-	xsfd::log("!Dumping...\n");
-	v_domains = *dotnet::dump();
-	xsfd::log("!Dump completed.\n");
+	if (!async_dump.valid() && ImGui::Button("Dump"))
+	{
+		xsfd::log("!Dumping...\n");
+		v_domains.clear();
+		async_dump = std::async([&]
+		{
+			v_domains = *dotnet::dump();
+			xsfd::log("!Dump completed.\n");
+		});
+	}
 }
 
 
