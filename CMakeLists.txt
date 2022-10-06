@@ -13,7 +13,7 @@ set(XSFDEU_PLUG_BUILD_OUTPUT "" CACHE PATH "Optional path to automatically copy 
 set(XSFDEU_DOTNET_SDK_PATH "C:/Program Files (x86)/Windows Kits/NETFXSDK" CACHE PATH "dotNet SDK installation path. (NETFXSDK directory)")
 set(XSFDEU_DOTNET_SDK_VER "" CACHE STRING "dotNet version SDK to use.")
 
-set(XSFDEU_DOTNET_HOST_PATH "C:/Program Files/dotnet/packs/Microsoft.NETCore.App.Host.win-" CACHE PATH "dotNet Core hosting SDK Path")
+set(XSFDEU_DOTNET_HOST_PATH "C:/Program Files/dotnet/packs/Microsoft.NETCore.App.Host.win-" CACHE PATH "dotNet Core hosting SDK Path in its partial form, do not include the architecture! (The \"x86\"/\"x64\", CMake will do it for you!)")
 set(XSFDEU_DOTNET_HOST_VER "" CACHE PATH "Version to be used for the hosting SDK")
 
 option(XSFDEU_PLUG_BUILD_OUTPUT_FORCE "Forces XSFDEU_PLUG_BUILD_OUTPUT" OFF)
@@ -113,11 +113,14 @@ set_target_properties(
 	CXX_STANDARD_REQUIRED True
 )
 
+set(_XSFDEU_DOTNET_HOST_FINAL_PATH "${XSFDEU_DOTNET_HOST_PATH}/${XSFDEU_DOTNET_HOST_VER}/runtimes/win-${XSFDEU_ARCH2_TXT}/native")
+
 target_include_directories(
 	${PROJECT_NAME}
 	PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk"
 	"${XSFDEU_DOTNET_SDK_INCLUDE}"
+	${_XSFDEU_DOTNET_HOST_FINAL_PATH}
 )
 
 target_link_libraries(
@@ -127,6 +130,7 @@ target_link_libraries(
 	"${CMAKE_CURRENT_SOURCE_DIR}/deps/pluginsdk/${XSFDEU_ARCH_TXT}bridge.lib"
 	"${XSFDEU_DOTNET_SDK_LIB}/mscoree.lib"
 	"${XSFDEU_DOTNET_SDK_LIB}/corguids.lib"
+	"${_XSFDEU_DOTNET_HOST_FINAL_PATH}/nethost.lib"
 	kita
 )
 
