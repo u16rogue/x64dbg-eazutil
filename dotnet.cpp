@@ -7,6 +7,9 @@
 #include <string>
 #include <memory>
 
+#include <nethost.h>
+#include <hostfxr.h>
+
 // Non volatile (instance can be kept throughout lifetime)
 static ICLRMetaHost    * meta_host      = nullptr;
 static ICLRDebugging   * clr_debugging  = nullptr;
@@ -376,6 +379,16 @@ auto dotnet::destroy() -> bool
 	}
 
 	return true;
+}
+
+auto dotnet::host_start() -> bool
+{
+	return false;
+}
+
+auto dotnet::host_end() -> bool
+{
+	return false;
 }
 
 auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>

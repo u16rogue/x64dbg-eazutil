@@ -13,6 +13,9 @@ set(XSFDEU_PLUG_BUILD_OUTPUT "" CACHE PATH "Optional path to automatically copy 
 set(XSFDEU_DOTNET_SDK_PATH "C:/Program Files (x86)/Windows Kits/NETFXSDK" CACHE PATH "dotNet SDK installation path. (NETFXSDK directory)")
 set(XSFDEU_DOTNET_SDK_VER "" CACHE STRING "dotNet version SDK to use.")
 
+set(XSFDEU_DOTNET_HOST_PATH "C:/Program Files/dotnet/packs/Microsoft.NETCore.App.Host.win-" CACHE PATH "dotNet Core hosting SDK Path")
+set(XSFDEU_DOTNET_HOST_VER "" CACHE PATH "Version to be used for the hosting SDK")
+
 option(XSFDEU_PLUG_BUILD_OUTPUT_FORCE "Forces XSFDEU_PLUG_BUILD_OUTPUT" OFF)
 option(XSFDEU_DEBUG "Debug flag" OFF)
 
@@ -74,6 +77,24 @@ endif()
 
 set(XSFDEU_DOTNET_SDK_INCLUDE "${XSFDEU_DOTNET_SDK_PATH}/${XSFDEU_DOTNET_SDK_VER}/Include/um")
 set(XSFDEU_DOTNET_SDK_LIB "${XSFDEU_DOTNET_SDK_PATH}/${XSFDEU_DOTNET_SDK_VER}/Lib/um/${XSFDEU_ARCH2_TXT}")
+
+set(XSFDEU_DOTNET_HOST_PATH "${XSFDEU_DOTNET_HOST_PATH}${XSFDEU_ARCH2_TXT}")
+
+if (NOT EXISTS ${XSFDEU_DOTNET_HOST_PATH})
+	message(FATAL_ERROR "The dotNet hosting SDK path was not found. Either dotNet is not installed or is installed somewhere else. Default value is ${XSFDEU_DOTNET_HOST_PATH}. Configure XSFDEU_DOTNET_HOST_PATH to an appropriate path.")
+endif()
+
+if (NOT XSFDEU_DOTNET_HOST_VER)
+	message("No dotNet hosting SDK version supplied in variable XSFDEU_DOTNET_HOST_VER.\nAvailable dotNet versions:")
+	FILE(GLOB dnvers ABSOLUTE "${XSFDEU_DOTNET_HOST_PATH}/*")
+	foreach(dnver ${dnvers})
+		if (IS_DIRECTORY ${dnver})
+			string(REPLACE "${XSFDEU_DOTNET_HOST_PATH}/" "" dnver ${dnver})
+			message(${dnver})
+		endif()
+	endforeach()
+	message(FATAL_ERROR "Provide a dotNet hosting version SDK to XSFDEU_DOTNET_HOST_VER variable")
+endif()
 
 if (XSFDEU_DEBUG)
 	target_compile_definitions(
