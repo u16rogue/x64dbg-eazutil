@@ -114,6 +114,7 @@ set_target_properties(
 )
 
 set(_XSFDEU_DOTNET_HOST_FINAL_PATH "${XSFDEU_DOTNET_HOST_PATH}/${XSFDEU_DOTNET_HOST_VER}/runtimes/win-${XSFDEU_ARCH2_TXT}/native")
+target_compile_definitions(${PROJECT_NAME} PRIVATE XSFD_HOSTFXR_PATH="${_XSFDEU_DOTNET_HOST_FINAL_PATH}")
 
 target_include_directories(
 	${PROJECT_NAME}

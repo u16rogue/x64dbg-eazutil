@@ -18,12 +18,12 @@ static ICLRDebugging   * clr_debugging  = nullptr;
 // inline ICLRRuntimeInfo * runtime_info  = nullptr;
 static std::unique_ptr<xsfd::debug_lib_provider> dlp_instance = nullptr;
 static std::unique_ptr<xsfd::debug_data_target>  ddt_instance = nullptr;
+
 static ICorDebugProcess  * cor_debug_process  = nullptr;
 static ICorDebugProcess5 * cor_debug_process5 = nullptr;
-void                     * prepare_method = nullptr;
+static void              * prepare_method     = nullptr;
 
-static HMODULE h_mscoree = nullptr;
-static HRESULT(*_CLRCreateInstance)(REFCLSID, REFIID, LPVOID *) = nullptr;
+static hostfxr_close_fn hostfxr_close = nullptr;
 
 static auto get_dotnet_path(std::filesystem::path & path_out, int (&ver_out)[3]) -> bool
 {
@@ -130,6 +130,7 @@ static auto dotnet_get_preparemethod_adr(const MODULEENTRY32 & clr) -> void *
 
 auto dotnet::initialize() -> bool
 {	
+	static HMODULE h_mscoree = nullptr;
 	if (!h_mscoree)
 	{
 		h_mscoree = LoadLibraryW(L"mscoree.dll");
@@ -141,6 +142,7 @@ auto dotnet::initialize() -> bool
 		XSFD_DEBUG_LOG("!Loaded mscoree module @ 0x%p\n", h_mscoree);
 	}
 
+	static HRESULT(*_CLRCreateInstance)(REFCLSID, REFIID, LPVOID *) = nullptr;
 	if (!_CLRCreateInstance)
 	{
 		_CLRCreateInstance = reinterpret_cast<decltype(_CLRCreateInstance)>(GetProcAddress(h_mscoree, "CLRCreateInstance"));
@@ -383,7 +385,87 @@ auto dotnet::destroy() -> bool
 
 auto dotnet::host_start() -> bool
 {
-	return false;
+	static HMODULE hnethost = nullptr;
+	if (!hnethost)
+	{
+		hnethost = LoadLibraryA(XSFD_HOSTFXR_PATH "/nethost.dll");
+		if (!hnethost)
+		{
+			xsfd::log("!ERROR: Could not load nethost.\n");
+			return false;
+		}
+	}
+	XSFD_DEBUG_LOG("!Loaded nethost @ 0x%p\n", hnethost);
+
+	static decltype(get_hostfxr_path) * _get_hostfxr_path = nullptr;
+	if (!_get_hostfxr_path)
+	{
+		_get_hostfxr_path = (decltype(_get_hostfxr_path))GetProcAddress(hnethost, "get_hostfxr_path");
+		if (!_get_hostfxr_path)
+		{
+			xsfd::log("!ERROR: Failed to import nethost.get_hostfxr_path.\n");
+			return false;
+		}
+	}
+	XSFD_DEBUG_LOG("!Imported nethost.get_hostfxr_path @ 0x%p\n", _get_hostfxr_path);
+
+	char_t hostfxr_path[MAX_PATH] = {};
+	size_t hostfxr_size = MAX_PATH;
+	if (_get_hostfxr_path(hostfxr_path, &hostfxr_size, nullptr) != S_OK)
+	{
+		xsfd::log("!ERROR: get_hostfxr_path Failed.\n");
+		return false;
+	}
+	XSFD_DEBUG_LOG("!hostxfr path: %s\n", xsfd::wc2u8(hostfxr_path).c_str());
+
+	static HMODULE hhostfxr = nullptr;
+	if (!hhostfxr)
+	{
+		hhostfxr = LoadLibraryW(hostfxr_path);
+		if (!hhostfxr)
+		{
+			xsfd::log("!ERROR: Failed to load hostfxr.\n");
+			return false;
+		}
+	}
+	XSFD_DEBUG_LOG("!hostfxr loaded @ 0x%p\n", hhostfxr);
+
+	static hostfxr_initialize_for_runtime_config_fn hostfxr_init_runtime_cfg = nullptr;
+	if (!hostfxr_init_runtime_cfg)
+	{
+		hostfxr_init_runtime_cfg = (decltype(hostfxr_init_runtime_cfg))GetProcAddress(hhostfxr, "hostfxr_initialize_for_runtime_config");
+		if (!hostfxr_init_runtime_cfg)
+		{
+			xsfd::log("!hostfxr failed to import hostfxr_initialize_for_runtime_config.\n");
+			return false;
+		}
+	}
+	XSFD_DEBUG_LOG("!hostfxr.hostfxr_initialize_for_runtime_config imported @ 0x%p\n", hostfxr_init_runtime_cfg);
+
+	static hostfxr_get_runtime_delegate_fn hostfxr_get_runtime = nullptr;
+	if (!hostfxr_get_runtime)
+	{
+		hostfxr_get_runtime = (decltype(hostfxr_get_runtime))GetProcAddress(hhostfxr, "hostfxr_get_runtime_delegate");
+		if (!hostfxr_get_runtime)
+		{
+			xsfd::log("!hostfxr failed to import hostfxr_get_runtime_delegate.\n");
+			return false;
+		}
+	}
+	XSFD_DEBUG_LOG("!hostfxr.hostfxr_get_runtime_delegate imported @ 0x%p\n", hostfxr_get_runtime);
+
+	if (!hostfxr_close)
+	{
+		hostfxr_close = (decltype(hostfxr_close))GetProcAddress(hhostfxr, "hostfxr_close");
+		if (!hostfxr_close)
+		{
+			xsfd::log("!hostfxr failed to import hostfxr_close.\n");
+			return false;
+		}
+	}
+	XSFD_DEBUG_LOG("!hostfxr.hostfxr_close imported @ 0x%p\n", hostfxr_close);
+
+	return true;
 }
 
 auto dotnet::host_end() -> bool
