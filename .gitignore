@@ -4,3 +4,4 @@ out/
 deps/pluginsdk
 CMakeSettings.json
 notes.txt
+dncoretest/

@@ -465,6 +465,15 @@ auto dotnet::host_start() -> bool
 	}
 	XSFD_DEBUG_LOG("!hostfxr.hostfxr_close imported @ 0x%p\n", hostfxr_close);
 
+	hostfxr_handle hfxr_handle = nullptr;
+	if (hostfxr_init_runtime_cfg(nullptr, nullptr, &hfxr_handle) != S_OK)
+	{
+		xsfd::log("!ERROR: Failed to initialize hostfxr.\n");
+		return false;
+	}
+
+	XSFD_DEBUG_LOG("!Initialized hostfxr handle: 0x%p", hfxr_handle);
+
 	return true;
 }
 
