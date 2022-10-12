@@ -378,6 +378,33 @@ auto dotnet::destroy() -> bool
 	return true;
 }
 
+auto dotnet::host_start() -> bool
+{
+	if (!h_mscoree)
+	{
+		xsfd::log("!ERROR: mscoree is not loaded. This isn't supposed to happen as the dotnet component should be initialized before this is called.\n");
+		return false;
+	}
+
+	static decltype(CorBindToRuntimeEx) * _CorBindToRuntimeEx = nullptr;
+	if (!_CorBindToRuntimeEx)
+	{
+		_CorBindToRuntimeEx = GetProcAddress(h_mscoree, "CorBindToRuntimeEx");
+		if (!_CorBindToRuntimeEx)
+		{
+			xsfd::log("!ERROR: Failed to import mscoree.CorBindToRuntimeEx.\n");
+			return false;
+		}
+	}
+
+	return true;
+}
+
+auto dotnet::host_end() -> bool
+{
+	return false;
+}
+
 auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 {
 	std::vector<domain_info_t> v_domains;
