@@ -174,7 +174,6 @@ auto dotnet::initialize() -> bool
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------ 
 	// Enumerate loaded runtimes
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------ 
-
 	IEnumUnknown * enum_runtime = nullptr;
 	if (meta_host->EnumerateLoadedRuntimes(phnd, &enum_runtime) != S_OK)
 	{
@@ -380,20 +379,51 @@ auto dotnet::destroy() -> bool
 
 auto dotnet::host_start() -> bool
 {
+	const char * _einfo = "This isn't supposed to happen as the dotnet component should be initialized before this is called.";
 	if (!h_mscoree)
 	{
-		xsfd::log("!ERROR: mscoree is not loaded. This isn't supposed to happen as the dotnet component should be initialized before this is called.\n");
+		xsfd::log("!ERROR: mscoree is not loaded. %s\n", _einfo);
 		return false;
 	}
 
-	static decltype(CorBindToRuntimeEx) * _CorBindToRuntimeEx = nullptr;
-	if (!_CorBindToRuntimeEx)
+	if (!meta_host)
 	{
-		_CorBindToRuntimeEx = GetProcAddress(h_mscoree, "CorBindToRuntimeEx");
-		if (!_CorBindToRuntimeEx)
+		xsfd::log("!ERROR: Meta host interface is not available. %s\n", _einfo);
+		return false;
+	}
+
+	IEnumUnknown * installed_runtimes = nullptr;
+	if (meta_host->EnumerateInstalledRuntimes(&installed_runtimes) != S_OK)
+	{
+		xsfd::log("!ERROR: Could not enumerate installed runtimes.\n");
+		return false;
+	}
+
+	XSFD_DEFER {
+		XSFD_DEBUG_LOG("!Releasing installed_runtimes...\n");
+		installed_runtimes->Release();
+	};
+
+	XSFD_DEBUG_LOG("!Installed hosts enumerator @ 0x%p\n", installed_runtimes);
+
+	ICLRRuntimeInfo * installed_runtime = nullptr; // DEV: Pointer can be kept from releasing by acquiring it through copying the pointer and setting this to null. check the defer statement.
+	ULONG instrt_count = 0; // NOTE: should we even verify the count?
+	while (installed_runtimes->Next(1, (IUnknown **)&installed_runtime, &instrt_count) == S_OK)
+	{
+		XSFD_DEFER { 
+			if (installed_runtime)
+			{
+				XSFD_DEBUG_LOG("!Releasing installed runtime info @ 0x%p", installed_runtime);
+				installed_runtime->Release();
+			}
+		};
+
+		XSFD_DEBUG_LOG("!Obtained installed runtime @ 0x%p\n", installed_runtime);
+
+		if (BOOL is_loadable = FALSE; installed_runtime->IsLoadable(&is_loadable) != S_OK || !is_loadable)
 		{
-			xsfd::log("!ERROR: Failed to import mscoree.CorBindToRuntimeEx.\n");
-			return false;
+			xsfd::log("!ERROR: Installed runtime 0x%p is not loadable!\n", installed_runtime);
+			continue;
 		}
 	}
 
