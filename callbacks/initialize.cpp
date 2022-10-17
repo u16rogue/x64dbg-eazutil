@@ -95,6 +95,7 @@ auto callbacks::initialize() -> void
 	dotnet::uninitialize();
 	if (dotnet::initialize())
 	{
+		dotnet::host_start();
 		global::initialized = true;
 		_plugin_menuentrysetname(global::pluginHandle, menuid_initalize, "Re-Initialize");
 		menu::add_render(dump_test, "dump test");

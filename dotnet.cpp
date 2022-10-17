@@ -406,6 +406,8 @@ auto dotnet::host_start() -> bool
 
 	XSFD_DEBUG_LOG("!Installed hosts enumerator @ 0x%p\n", installed_runtimes);
 
+	// TODO: choose highest available version
+	ICorRuntimeHost * current_host = nullptr;
 	ICLRRuntimeInfo * installed_runtime = nullptr; // DEV: Pointer can be kept from releasing by acquiring it through copying the pointer and setting this to null. check the defer statement.
 	ULONG instrt_count = 0; // NOTE: should we even verify the count?
 	while (installed_runtimes->Next(1, (IUnknown **)&installed_runtime, &instrt_count) == S_OK)
@@ -413,19 +415,67 @@ auto dotnet::host_start() -> bool
 		XSFD_DEFER { 
 			if (installed_runtime)
 			{
-				XSFD_DEBUG_LOG("!Releasing installed runtime info @ 0x%p", installed_runtime);
+				XSFD_DEBUG_LOG("!Releasing installed runtime info @ 0x%p\n", installed_runtime);
 				installed_runtime->Release();
 			}
 		};
 
-		XSFD_DEBUG_LOG("!Obtained installed runtime @ 0x%p\n", installed_runtime);
+		#ifdef XSFDEU_DEBUG
+		{
+			wchar_t vs[24] = { L"Version Failed" };
+			DWORD sz = 24;
+			installed_runtime->GetVersionString(vs, &sz);
+			XSFD_DEBUG_LOG("!Obtained installed runtime @ 0x%p -> Version: %s\n", installed_runtime, xsfd::wc2u8(vs).c_str());
+		}
+		#endif
 
+		// Check if loadable
 		if (BOOL is_loadable = FALSE; installed_runtime->IsLoadable(&is_loadable) != S_OK || !is_loadable)
 		{
 			xsfd::log("!ERROR: Installed runtime 0x%p is not loadable!\n", installed_runtime);
 			continue;
 		}
+
+		// Get runtime host
+		ICorRuntimeHost * installed_host = nullptr;
+		if (installed_runtime->GetInterface(CLSID_CorRuntimeHost, IID_ICorRuntimeHost, (LPVOID *)&installed_host) != S_OK)
+		{
+			xsfd::log("!ERROR: Cant get runtime host interface from installed runtime 0x%p\n", installed_runtime);
+			continue;
+		}
+
+		XSFD_DEFER {
+			if (installed_host)
+			{
+				XSFD_DEBUG_LOG("!Releasing installed host interface @ 0x%p\n", installed_host);
+				installed_host->Release();
+			}
+		};
+
+		XSFD_DEBUG_LOG("!Installed runtime host @ 0x%p\n", installed_host);
+
+		if (installed_host->Start() != S_OK)
+		{
+			xsfd::log("!ERROR: Failed to start runtime host @ 0x%p\n", installed_host);
+			continue;
+		}
+
+		current_host = installed_host;
+		installed_host = nullptr;
+		break;
 	}
+
+	if (!current_host)
+	{
+		xsfd::log("!ERROR: No suitable CLR host found.\n");
+		return false;
+	}
+
+	XSFD_DEBUG_LOG("!CLR Host interface running @ 0x%p\n", current_host);
+
+
+	// DEV: debug
+	XSFD_DEFER { if (current_host) current_host->Release(); };
 
 	return true;
 }
