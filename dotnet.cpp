@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <memory>
+#include <algorithm>
 
 // Non volatile (instance can be kept throughout lifetime)
 static ICLRMetaHost    * meta_host      = nullptr;
@@ -377,6 +378,131 @@ auto dotnet::destroy() -> bool
 	return true;
 }
 
+struct dn_ver_info_t
+{
+	ICLRRuntimeInfo * info;
+	int v[3];
+	ICorRuntimeHost * host;
+};
+
+static auto dotnet_enumerate_and_run_installed_hosts(ICLRMetaHost * mhost, dn_ver_info_t & out_runtimehost) -> bool
+{
+	out_runtimehost = {
+		.info = nullptr,
+		.host = nullptr
+	};
+
+	IEnumUnknown * installed_runtimes = nullptr;
+	if (mhost->EnumerateInstalledRuntimes(&installed_runtimes) != S_OK)
+	{
+		xsfd::log("!ERROR: Could not enumerate installed runtimes.\n");
+		return false;
+	}
+
+	XSFD_DEFER {
+		XSFD_DEBUG_LOG("!Releasing installed_runtimes enumerator...\n");
+		installed_runtimes->Release();
+	};
+
+	XSFD_DEBUG_LOG("!Installed hosts enumerator @ 0x%p\n", installed_runtimes);
+
+	std::vector<dn_ver_info_t> runtime_infos;
+
+	ICLRRuntimeInfo * current_info = nullptr;
+	ULONG count = 0;
+	while (installed_runtimes->Next(1, (IUnknown **)&current_info, &count) == S_OK && count == 1)
+	{
+		// !IMPORTANT: Null current_info if it was successfully added to prevent it from being automatically released.
+		XSFD_DEFER {
+			if (current_info)
+				current_info->Release();
+		};
+
+		dn_ver_info_t current_dn = {};
+		current_dn.info = current_info;
+
+		wchar_t v_str[32] = {};
+		DWORD v_sz = 32;
+		if (current_info->GetVersionString(v_str, &v_sz) != S_OK)
+		{
+			xsfd::log("!Version parsing failed for installed runtime 0x%p\n", current_info);
+			continue;
+		}
+
+		XSFD_DEBUG_LOG("!Installed runtime 0x%p is running %s\n", current_info, xsfd::wc2u8(v_str).c_str());
+
+		if (swscanf_s(v_str, L"v%d.%d.%d", &current_dn.v[0], &current_dn.v[1], &current_dn.v[2]) != 3)
+		{
+			xsfd::log("!Numeric version parsing failed.\n");
+			continue;
+		}
+
+		if (BOOL is_loadable = FALSE; current_info->IsLoadable(&is_loadable) != S_OK || !is_loadable)
+		{
+			xsfd::log("!Installed runtime 0x%p is not loadable.", current_info);
+			continue;
+		}
+
+		runtime_infos.emplace_back(current_dn);
+		current_info = nullptr;
+	}
+
+	if (runtime_infos.empty())
+	{
+		xsfd::log("!ERROR: No suitable runtime info found.\n");
+		return false;
+	}
+
+	std::sort(runtime_infos.begin(), runtime_infos.end(), [](const dn_ver_info_t & lhs, const dn_ver_info_t & rhs) -> bool {
+		return lhs.v[0] > rhs.v[0] || lhs.v[1] > rhs.v[1]; //|| lhs.v[2] > rhs.v[2];
+	});
+
+	#ifdef XSFDEU_DEBUG
+	{
+		xsfd::log("!Version sorted to:\n");
+		for (const auto & v : runtime_infos)
+			xsfd::log("!    %d.%d.%d\n", v.v[0], v.v[1], v.v[2]);
+	}
+	#endif
+
+	// Look for a loadable version
+	for (const auto & v : runtime_infos)
+	{
+		if (BOOL is_loadable = FALSE; v.info->IsLoadable(&is_loadable) != S_OK || !is_loadable)
+			continue;
+
+		// NOTE: Null rtime_host if its successful to prevent it from being released
+		ICorRuntimeHost * rtime_host = nullptr;
+		if (v.info->GetInterface(CLSID_CorRuntimeHost, IID_ICorRuntimeHost, (LPVOID *)&rtime_host) != S_OK)
+			continue;
+
+		XSFD_DEFER {
+			if (rtime_host)
+				rtime_host->Release();
+		};
+
+		if (rtime_host->Start() != S_OK)
+			continue;
+
+		out_runtimehost.info = v.info;
+		out_runtimehost.host = rtime_host;
+		for (int i = 0; i < 3; ++i)
+			out_runtimehost.v[i] = v.v[i];
+
+		// Prevent release
+		rtime_host = nullptr;
+
+		break;
+	}
+
+	// Release runtime information
+	for (const auto & v : runtime_infos)
+		if (v.info != out_runtimehost.info) // Except if its going out
+			v.info->Release();
+
+	return out_runtimehost.host; // Returns true or false depending if there's a resulting host.
+}
+
 auto dotnet::host_start() -> bool
 {
 	const char * _einfo = "This isn't supposed to happen as the dotnet component should be initialized before this is called.";
@@ -392,90 +518,14 @@ auto dotnet::host_start() -> bool
 		return false;
 	}
 
-	IEnumUnknown * installed_runtimes = nullptr;
-	if (meta_host->EnumerateInstalledRuntimes(&installed_runtimes) != S_OK)
+	dn_ver_info_t result;
+	if (!dotnet_enumerate_and_run_installed_hosts(meta_host, result))
 	{
-		xsfd::log("!ERROR: Could not enumerate installed runtimes.\n");
+		xsfd::log("!ERROR: No available runtime.");
 		return false;
 	}
 
-	XSFD_DEFER {
-		XSFD_DEBUG_LOG("!Releasing installed_runtimes...\n");
-		installed_runtimes->Release();
-	};
-
-	XSFD_DEBUG_LOG("!Installed hosts enumerator @ 0x%p\n", installed_runtimes);
-
-	// TODO: choose highest available version
-	ICorRuntimeHost * current_host = nullptr;
-	ICLRRuntimeInfo * installed_runtime = nullptr; // DEV: Pointer can be kept from releasing by acquiring it through copying the pointer and setting this to null. check the defer statement.
-	ULONG instrt_count = 0; // NOTE: should we even verify the count?
-	while (installed_runtimes->Next(1, (IUnknown **)&installed_runtime, &instrt_count) == S_OK)
-	{
-		XSFD_DEFER { 
-			if (installed_runtime)
-			{
-				XSFD_DEBUG_LOG("!Releasing installed runtime info @ 0x%p\n", installed_runtime);
-				installed_runtime->Release();
-			}
-		};
-
-		#ifdef XSFDEU_DEBUG
-		{
-			wchar_t vs[24] = { L"Version Failed" };
-			DWORD sz = 24;
-			installed_runtime->GetVersionString(vs, &sz);
-			XSFD_DEBUG_LOG("!Obtained installed runtime @ 0x%p -> Version: %s\n", installed_runtime, xsfd::wc2u8(vs).c_str());
-		}
-		#endif
-
-		// Check if loadable
-		if (BOOL is_loadable = FALSE; installed_runtime->IsLoadable(&is_loadable) != S_OK || !is_loadable)
-		{
-			xsfd::log("!ERROR: Installed runtime 0x%p is not loadable!\n", installed_runtime);
-			continue;
-		}
-
-		// Get runtime host
-		ICorRuntimeHost * installed_host = nullptr;
-		if (installed_runtime->GetInterface(CLSID_CorRuntimeHost, IID_ICorRuntimeHost, (LPVOID *)&installed_host) != S_OK)
-		{
-			xsfd::log("!ERROR: Cant get runtime host interface from installed runtime 0x%p\n", installed_runtime);
-			continue;
-		}
-
-		XSFD_DEFER {
-			if (installed_host)
-			{
-				XSFD_DEBUG_LOG("!Releasing installed host interface @ 0x%p\n", installed_host);
-				installed_host->Release();
-			}
-		};
-
-		XSFD_DEBUG_LOG("!Installed runtime host @ 0x%p\n", installed_host);
-
-		if (installed_host->Start() != S_OK)
-		{
-			xsfd::log("!ERROR: Failed to start runtime host @ 0x%p\n", installed_host);
-			continue;
-		}
-
-		current_host = installed_host;
-		installed_host = nullptr;
-		break;
-	}
-
-	if (!current_host)
-	{
-		xsfd::log("!ERROR: No suitable CLR host found.\n");
-		return false;
-	}
-
-	XSFD_DEBUG_LOG("!CLR Host interface running @ 0x%p\n", current_host);
-
-
-	// DEV: debug
-	XSFD_DEFER { if (current_host) current_host->Release(); };
+	XSFD_DEBUG_LOG("!Hosting dotnet version %d.%d.%d", result.v[0], result.v[1], result.v[2]);
 
 	return true;
 }
