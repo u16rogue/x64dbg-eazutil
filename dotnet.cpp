@@ -11,6 +11,7 @@
 // Non volatile (instance can be kept throughout lifetime)
 static ICLRMetaHost    * meta_host      = nullptr;
 static ICLRDebugging   * clr_debugging  = nullptr;
+static ICorRuntimeHost * dn_host        = nullptr;
 
 // Volatile (instance is recreated and is only placed here for global access)
 // inline ICLRRuntimeInfo * runtime_info  = nullptr;
@@ -518,19 +519,40 @@ auto dotnet::host_start() -> bool
 		return false;
 	}
 
-	dn_ver_info_t result;
-	if (!dotnet_enumerate_and_run_installed_hosts(meta_host, result))
+	if (dn_ver_info_t result; dotnet_enumerate_and_run_installed_hosts(meta_host, result))
 	{
-		xsfd::log("!ERROR: No available runtime.");
+		XSFD_DEBUG_LOG("!Hosting dotnet version %d.%d.%d @ 0x%p\n", result.v[0], result.v[1], result.v[2], result.host);
+		result.info->Release();
+		dn_host = result.host;
+	}
+	else
+	{
+		xsfd::log("!ERROR: No available runtime.\n");
 		return false;
 	}
-
-	XSFD_DEBUG_LOG("!Hosting dotnet version %d.%d.%d", result.v[0], result.v[1], result.v[2]);
 
 	return true;
 }
 
 auto dotnet::host_end() -> bool
+{
+	if (!dn_host)
+	{
+		xsfd::log("ERROR: No existing host to end in the first place.\n");
+		return false;
+	}
+
+	if (dn_host->Stop() != S_OK)
+	{
+		xsfd::log("ERROR: Failed to stop runtime host.\n");
+		return false;
+	}
+
+	dn_host = nullptr;
+	return true;
+}
+
+auto dotnet::host_load_library(const char * lib_path) -> bool
 {
 	return false;
 }

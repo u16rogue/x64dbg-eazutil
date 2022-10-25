@@ -49,5 +49,7 @@ namespace dotnet
 	auto host_start() -> bool;
 	auto host_end() -> bool;
 
+	auto host_load_library(const char * lib_path) -> bool;
+
 	auto dump() -> std::optional<std::vector<domain_info_t>>;
 }
