@@ -11,7 +11,7 @@
 // Non volatile (instance can be kept throughout lifetime)
 static ICLRMetaHost    * meta_host      = nullptr;
 static ICLRDebugging   * clr_debugging  = nullptr;
-static ICorRuntimeHost * dn_host        = nullptr;
+static ICorRuntimeHost * runtime_host   = nullptr;
 
 // Volatile (instance is recreated and is only placed here for global access)
 // inline ICLRRuntimeInfo * runtime_info  = nullptr;
@@ -359,7 +359,10 @@ auto dotnet::uninitialize() -> bool
 
 auto dotnet::destroy() -> bool
 {
-	if (!dotnet::uninitialize())
+	if (host_running())
+		host_end();
+
+	if (!uninitialize())
 		return false;
 
 	if (clr_debugging)
@@ -504,6 +507,11 @@ static auto dotnet_enumerate_and_run_installed_hosts(ICLRMetaHost * mhost, dn_ve
 	return out_runtimehost.host; // Returns true or false depending if there's a resulting host.
 }
 
+auto dotnet::host_running() -> bool
+{
+	return runtime_host;
+}
+
 auto dotnet::host_start() -> bool
 {
 	const char * _einfo = "This isn't supposed to happen as the dotnet component should be initialized before this is called.";
@@ -523,7 +531,7 @@ auto dotnet::host_start() -> bool
 	{
 		XSFD_DEBUG_LOG("!Hosting dotnet version %d.%d.%d @ 0x%p\n", result.v[0], result.v[1], result.v[2], result.host);
 		result.info->Release();
-		dn_host = result.host;
+		runtime_host = result.host;
 	}
 	else
 	{
@@ -531,24 +539,56 @@ auto dotnet::host_start() -> bool
 		return false;
 	}
 
+	IUnknown * default_domain = nullptr;
+	if (runtime_host->GetDefaultDomain(&default_domain) != S_OK || !default_domain)
+	{
+		xsfd::log("!ERROR: Could not obtain default domain.\n");
+		return false;
+	}
+	XSFD_DEFER {
+		if (default_domain)
+		{
+			XSFD_DEBUG_LOG("!Releasing default_domain...\n");
+			default_domain->Release();
+		}
+	};
+	XSFD_DEBUG_LOG("!Default domain @ 0x%p\n", default_domain);
+	
+
+	constexpr GUID app_domain_guid = { 0x05f696dc, 0x2b29, 0x3663, { 0xad, 0x8b, 0xc4, 0x38, 0x9c, 0xf2, 0xa7, 0x13 } };
+	IUnknown * app_domain = nullptr;
+	if (default_domain->QueryInterface(app_domain_guid, (void **)&app_domain) != S_OK)
+	{
+		xsfd::log("!ERROR: Failed to query for app domain.\n");
+		return false;
+	}
+	XSFD_DEFER {
+		if (app_domain)
+		{
+			XSFD_DEBUG_LOG("!Releasing app_domain...\n");
+			app_domain->Release();
+		}
+	};
+	XSFD_DEBUG_LOG("!App domain @ 0x%p\n", app_domain);
+
 	return true;
 }
 
 auto dotnet::host_end() -> bool
 {
-	if (!dn_host)
+	if (!runtime_host)
 	{
 		xsfd::log("ERROR: No existing host to end in the first place.\n");
 		return false;
 	}
 
-	if (dn_host->Stop() != S_OK)
+	if (runtime_host->Stop() != S_OK)
 	{
 		xsfd::log("ERROR: Failed to stop runtime host.\n");
 		return false;
 	}
 
-	dn_host = nullptr;
+	runtime_host = nullptr;
 	return true;
 }
 

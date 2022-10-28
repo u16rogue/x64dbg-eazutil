@@ -46,6 +46,7 @@ namespace dotnet
 	auto uninitialize() -> bool;
 	auto destroy() -> bool;
 
+	auto host_running() -> bool;
 	auto host_start() -> bool;
 	auto host_end() -> bool;
 
