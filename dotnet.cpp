@@ -7,11 +7,13 @@
 #include <string>
 #include <memory>
 #include <algorithm>
+#include <fstream>
 
 // Non volatile (instance can be kept throughout lifetime)
-static ICLRMetaHost    * meta_host      = nullptr;
-static ICLRDebugging   * clr_debugging  = nullptr;
-static ICorRuntimeHost * runtime_host   = nullptr;
+static ICLRMetaHost    * meta_host       = nullptr;
+static ICLRDebugging   * clr_debugging   = nullptr;
+static ICorRuntimeHost * runtime_host    = nullptr;
+static IUnknown        * host_app_domain = nullptr;
 
 // Volatile (instance is recreated and is only placed here for global access)
 // inline ICLRRuntimeInfo * runtime_info  = nullptr;
@@ -527,11 +529,12 @@ auto dotnet::host_start() -> bool
 		return false;
 	}
 
+	ICorRuntimeHost * _runtime_host = nullptr; // DEV: Upon success null this pointer to prevent it from being released
 	if (dn_ver_info_t result; dotnet_enumerate_and_run_installed_hosts(meta_host, result))
 	{
 		XSFD_DEBUG_LOG("!Hosting dotnet version %d.%d.%d @ 0x%p\n", result.v[0], result.v[1], result.v[2], result.host);
 		result.info->Release();
-		runtime_host = result.host;
+		_runtime_host = result.host;
 	}
 	else
 	{
@@ -539,8 +542,17 @@ auto dotnet::host_start() -> bool
 		return false;
 	}
 
+	XSFD_DEFER {
+		if (_runtime_host)
+		{
+			XSFD_DEBUG_LOG("!Stopping and Releasing temporary _runtime_host...\n");
+			_runtime_host->Stop();
+			_runtime_host->Release();
+		}
+	};
+
 	IUnknown * default_domain = nullptr;
-	if (runtime_host->GetDefaultDomain(&default_domain) != S_OK || !default_domain)
+	if (_runtime_host->GetDefaultDomain(&default_domain) != S_OK || !default_domain)
 	{
 		xsfd::log("!ERROR: Could not obtain default domain.\n");
 		return false;
@@ -554,7 +566,6 @@ auto dotnet::host_start() -> bool
 	};
 	XSFD_DEBUG_LOG("!Default domain @ 0x%p\n", default_domain);
 	
-
 	constexpr GUID app_domain_guid = { 0x05f696dc, 0x2b29, 0x3663, { 0xad, 0x8b, 0xc4, 0x38, 0x9c, 0xf2, 0xa7, 0x13 } };
 	IUnknown * app_domain = nullptr;
 	if (default_domain->QueryInterface(app_domain_guid, (void **)&app_domain) != S_OK)
@@ -571,6 +582,12 @@ auto dotnet::host_start() -> bool
 	};
 	XSFD_DEBUG_LOG("!App domain @ 0x%p\n", app_domain);
 
+	runtime_host = _runtime_host;
+	_runtime_host = nullptr;
+
+	host_app_domain = app_domain;
+	app_domain = nullptr;
+
 	return true;
 }
 
@@ -582,19 +599,28 @@ auto dotnet::host_end() -> bool
 		return false;
 	}
 
+	if (host_app_domain)
+	{
+		XSFD_DEBUG_LOG("!Releasing host_app_domain...\n");
+		host_app_domain->Release();
+		host_app_domain = nullptr;
+	}
+
 	if (runtime_host->Stop() != S_OK)
 	{
 		xsfd::log("ERROR: Failed to stop runtime host.\n");
 		return false;
 	}
 
+	XSFD_DEBUG_LOG("!Releasing runtime_host...\n");
+	runtime_host->Release();
 	runtime_host = nullptr;
 	return true;
 }
 
-auto dotnet::host_load_library(const char * lib_path) -> bool
+auto dotnet::host_load_library(const char * lib_path) -> xsfd_dn_module
 {
-	return false;
+	return xsfd_dn_module(lib_path);
 }
 
 auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
@@ -787,4 +813,56 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 	}
 
 	return v_domains;
+}
+
+dotnet::xsfd_dn_module::xsfd_dn_module(const char * path)
+{
+	if (!path)
+		return;
+
+	auto _path = std::filesystem::path("plugins") / path;
+	//if (std::filesystem::exists(_path))
+	//	return;
+
+	std::ifstream f;
+	if (f.open(_path, std::ios::binary); !f.is_open())
+		return;
+
+	XSFD_DEFER {
+		f.close();
+	};
+
+	auto _sz = 0;
+	{
+		auto a = f.tellg();
+		f.seekg(0, std::ios::end);
+		auto b = f.tellg();
+		f.clear();
+		f.seekg(0);
+		_sz = b - a;
+	}
+
+	XSFD_DEBUG_LOG("!Read file size: %d\n", _sz);
+	auto _tmp = std::make_unique<std::uint8_t[]>(_sz);
+
+	f.read((char *)_tmp.get(), _sz);
+
+	if (*(std::uint16_t *)_tmp.get() != *(std::uint16_t *)"MZ")
+		return;
+
+	data = std::move(_tmp);
+}
+
+dotnet::xsfd_dn_module::~xsfd_dn_module()
+{
+}
+
+dotnet::xsfd_dn_module::operator bool() const noexcept
+{
+	return data && data.get();
+}
+
+auto dotnet::xsfd_dn_module::get_raw() -> void *
+{
+	return data.get();
 }

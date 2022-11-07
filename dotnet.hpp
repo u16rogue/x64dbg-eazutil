@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <cstdint>
 
 namespace dotnet
 {
@@ -42,6 +43,18 @@ namespace dotnet
 		std::vector<assembly_info_t> assemblies;
 	};
 
+	class xsfd_dn_module
+	{
+	public:
+		xsfd_dn_module(const char * path);
+		~xsfd_dn_module();
+
+		operator bool() const noexcept;
+		auto get_raw() -> void *;
+	private:
+		std::unique_ptr<std::uint8_t[]> data;
+	};
+
 	auto initialize() -> bool;
 	auto uninitialize() -> bool;
 	auto destroy() -> bool;
@@ -50,7 +63,7 @@ namespace dotnet
 	auto host_start() -> bool;
 	auto host_end() -> bool;
 
-	auto host_load_library(const char * lib_path) -> bool;
+	auto host_load_library(const char * lib_path) -> xsfd_dn_module;
 
 	auto dump() -> std::optional<std::vector<domain_info_t>>;
 }
