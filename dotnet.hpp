@@ -51,8 +51,8 @@ namespace dotnet
 
 		operator bool() const noexcept;
 		auto get_raw() -> void *;
+		auto get_size() -> std::size_t;
 	private:
-		std::unique_ptr<std::uint8_t[]> data;
 	};
 
 	auto initialize() -> bool;
@@ -63,7 +63,7 @@ namespace dotnet
 	auto host_start() -> bool;
 	auto host_end() -> bool;
 
-	auto host_load_library(const char * lib_path) -> xsfd_dn_module;
+	auto host_load_library(const char * lib_path) -> std::optional<xsfd_dn_module>;
 
 	auto dump() -> std::optional<std::vector<domain_info_t>>;
 }

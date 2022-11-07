@@ -618,9 +618,57 @@ auto dotnet::host_end() -> bool
 	return true;
 }
 
-auto dotnet::host_load_library(const char * lib_path) -> xsfd_dn_module
+auto dotnet::host_load_library(const char * lib_path) -> std::optional<xsfd_dn_module>
 {
-	return xsfd_dn_module(lib_path);
+	if (!lib_path)
+		return std::nullopt;
+
+	auto _path = std::filesystem::path("plugins") / lib_path;
+	//if (std::filesystem::exists(_path))
+	//	return;
+
+	std::ifstream f;
+	if (f.open(_path, std::ios::binary); !f.is_open())
+		return std::nullopt;
+
+	XSFD_DEFER {
+		f.close();
+	};
+
+	auto _sz = 0;
+	{
+		auto a = f.tellg();
+		f.seekg(0, std::ios::end);
+		auto b = f.tellg();
+		f.clear();
+		f.seekg(0);
+		_sz = b - a;
+	}
+
+	auto _bin_tmp = std::make_unique<std::uint8_t[]>(_sz);
+	f.read((char *)_bin_tmp.get(), _sz);
+
+	if (*(std::uint16_t *)_bin_tmp.get() != *(std::uint16_t *)"MZ")
+		return std::nullopt;
+
+	SAFEARRAYBOUND sab = {
+		.cElements = (ULONG)_sz,
+		.lLbound   = 0
+	};
+	SAFEARRAY * sa_bin = SafeArrayCreate(VT_UI1, 1, &sab);
+	if (!sa_bin)
+		return std::nullopt;
+
+	std::uint8_t * sa_access = nullptr;
+	if (SafeArrayAccessData(sa_bin, (void **)&sa_access) != S_OK)
+		return std::nullopt;
+
+	std::memcpy(sa_access, _bin_tmp.get(), _sz);
+
+	if (SafeArrayUnaccessData(sa_bin) != S_OK)
+		return std::nullopt;
+
+	return std::nullopt;
 }
 
 auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
@@ -817,40 +865,6 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 
 dotnet::xsfd_dn_module::xsfd_dn_module(const char * path)
 {
-	if (!path)
-		return;
-
-	auto _path = std::filesystem::path("plugins") / path;
-	//if (std::filesystem::exists(_path))
-	//	return;
-
-	std::ifstream f;
-	if (f.open(_path, std::ios::binary); !f.is_open())
-		return;
-
-	XSFD_DEFER {
-		f.close();
-	};
-
-	auto _sz = 0;
-	{
-		auto a = f.tellg();
-		f.seekg(0, std::ios::end);
-		auto b = f.tellg();
-		f.clear();
-		f.seekg(0);
-		_sz = b - a;
-	}
-
-	XSFD_DEBUG_LOG("!Read file size: %d\n", _sz);
-	auto _tmp = std::make_unique<std::uint8_t[]>(_sz);
-
-	f.read((char *)_tmp.get(), _sz);
-
-	if (*(std::uint16_t *)_tmp.get() != *(std::uint16_t *)"MZ")
-		return;
-
-	data = std::move(_tmp);
 }
 
 dotnet::xsfd_dn_module::~xsfd_dn_module()
@@ -859,10 +873,15 @@ dotnet::xsfd_dn_module::~xsfd_dn_module()
 
 dotnet::xsfd_dn_module::operator bool() const noexcept
 {
-	return data && data.get();
+	return false;
 }
 
 auto dotnet::xsfd_dn_module::get_raw() -> void *
 {
-	return data.get();
+	return nullptr;
+}
+
+auto dotnet::xsfd_dn_module::get_size() -> std::size_t
+{
+	return 0;
 }
