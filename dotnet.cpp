@@ -620,12 +620,15 @@ auto dotnet::host_end() -> bool
 
 auto dotnet::host_load_library(const char * lib_path) -> std::optional<xsfd_dn_module>
 {
-	if (!lib_path)
+	if (!host_app_domain || !lib_path)
 		return std::nullopt;
 
 	auto _path = std::filesystem::path("plugins") / lib_path;
-	//if (std::filesystem::exists(_path))
-	//	return;
+	if (std::filesystem::exists(_path))
+	{
+		xsfd::log("!ERROR: Library file not found.\n");
+		return std::nullopt;
+	}
 
 	std::ifstream f;
 	if (f.open(_path, std::ios::binary); !f.is_open())
@@ -645,28 +648,54 @@ auto dotnet::host_load_library(const char * lib_path) -> std::optional<xsfd_dn_m
 		_sz = b - a;
 	}
 
+	XSFD_DEBUG_LOG("!Loading %d bytes of binary...", _sz);
+
 	auto _bin_tmp = std::make_unique<std::uint8_t[]>(_sz);
 	f.read((char *)_bin_tmp.get(), _sz);
 
 	if (*(std::uint16_t *)_bin_tmp.get() != *(std::uint16_t *)"MZ")
+	{
+		xsfd::log("!ERROR: Invalid PE magic!\n");
 		return std::nullopt;
+	}
 
 	SAFEARRAYBOUND sab = {
 		.cElements = (ULONG)_sz,
 		.lLbound   = 0
 	};
+
 	SAFEARRAY * sa_bin = SafeArrayCreate(VT_UI1, 1, &sab);
 	if (!sa_bin)
+	{
+		xsfd::log("!ERROR: SafeArrayCreate Failed.\n");
 		return std::nullopt;
+	}
 
 	std::uint8_t * sa_access = nullptr;
 	if (SafeArrayAccessData(sa_bin, (void **)&sa_access) != S_OK)
+	{
+		xsfd::log("!ERROR: SafeArrayAccessData Failed.\n");
 		return std::nullopt;
+	}
+	XSFD_DEBUG_LOG("!SafeArrayAccess to library binary @ 0x%p", sa_access);
 
 	std::memcpy(sa_access, _bin_tmp.get(), _sz);
 
 	if (SafeArrayUnaccessData(sa_bin) != S_OK)
+	{
+		xsfd::log("!ERROR: SafeArrayUnaccessData Failed.\n");
 		return std::nullopt;
+	}
+
+	void * out_assembly = nullptr;
+	if ((*(HRESULT(***)(void *, void *))host_app_domain)[0x0b4](sa_bin, &out_assembly) != S_OK) // Load_3 - loads the assembly
+	{
+		xsfd::log("!ERROR: Failed to load assembly (Load_3).\n");
+		return std::nullopt;
+	}
+
+	XSFD_DEBUG_LOG("!Assembly library loaded @ 0x%p", out_assembly);
+	
 
 	return std::nullopt;
 }
@@ -863,7 +892,8 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 	return v_domains;
 }
 
-dotnet::xsfd_dn_module::xsfd_dn_module(const char * path)
+dotnet::xsfd_dn_module::xsfd_dn_module(void * assembly)
+	: assembly(assembly)
 {
 }
 
@@ -873,15 +903,5 @@ dotnet::xsfd_dn_module::~xsfd_dn_module()
 
 dotnet::xsfd_dn_module::operator bool() const noexcept
 {
-	return false;
-}
-
-auto dotnet::xsfd_dn_module::get_raw() -> void *
-{
-	return nullptr;
-}
-
-auto dotnet::xsfd_dn_module::get_size() -> std::size_t
-{
-	return 0;
+	return assembly;
 }

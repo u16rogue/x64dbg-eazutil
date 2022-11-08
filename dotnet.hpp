@@ -46,13 +46,12 @@ namespace dotnet
 	class xsfd_dn_module
 	{
 	public:
-		xsfd_dn_module(const char * path);
+		xsfd_dn_module(void * assembly);
 		~xsfd_dn_module();
 
 		operator bool() const noexcept;
-		auto get_raw() -> void *;
-		auto get_size() -> std::size_t;
 	private:
+		void * assembly;
 	};
 
 	auto initialize() -> bool;
