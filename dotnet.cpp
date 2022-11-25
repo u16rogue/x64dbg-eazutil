@@ -1,5 +1,4 @@
 #include "dotnet.hpp"
-#include "xsfd_utils.hpp"
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <_plugins.h>
@@ -618,17 +617,19 @@ auto dotnet::host_end() -> bool
 	return true;
 }
 
-auto dotnet::host_load_library(const char * lib_path) -> std::optional<xsfd_dn_module>
+auto dotnet::host_load_library(const char * lib_name) -> std::optional<wrap_Assembly>
 {
-	if (!host_app_domain || !lib_path)
+	if (!host_app_domain || !lib_name)
 		return std::nullopt;
 
-	auto _path = std::filesystem::path("plugins") / lib_path;
+	auto _path = std::filesystem::path("plugins") / lib_name;
+	#if 0
 	if (std::filesystem::exists(_path))
 	{
 		xsfd::log("!ERROR: Library file not found.\n");
 		return std::nullopt;
 	}
+	#endif
 
 	std::ifstream f;
 	if (f.open(_path, std::ios::binary); !f.is_open())
@@ -677,7 +678,7 @@ auto dotnet::host_load_library(const char * lib_path) -> std::optional<xsfd_dn_m
 		xsfd::log("!ERROR: SafeArrayAccessData Failed.\n");
 		return std::nullopt;
 	}
-	XSFD_DEBUG_LOG("!SafeArrayAccess to library binary @ 0x%p", sa_access);
+	XSFD_DEBUG_LOG("!SafeArrayAccess to library binary @ 0x%p\n", sa_access);
 
 	std::memcpy(sa_access, _bin_tmp.get(), _sz);
 
@@ -688,14 +689,13 @@ auto dotnet::host_load_library(const char * lib_path) -> std::optional<xsfd_dn_m
 	}
 
 	void * out_assembly = nullptr;
-	if ((*(HRESULT(***)(void *, void *))host_app_domain)[0x0b4](sa_bin, &out_assembly) != S_OK) // Load_3 - loads the assembly
+	if ((*(HRESULT(__stdcall***)(void *, void *))host_app_domain)[0x0b4](sa_bin, &out_assembly) != S_OK) // Load_3 - loads the instance
 	{
 		xsfd::log("!ERROR: Failed to load assembly (Load_3).\n");
 		return std::nullopt;
 	}
 
-	XSFD_DEBUG_LOG("!Assembly library loaded @ 0x%p", out_assembly);
-	
+	XSFD_DEBUG_LOG("!Assembly library loaded @ 0x%p\n", out_assembly);
 
 	return std::nullopt;
 }
@@ -892,16 +892,37 @@ auto dotnet::dump() -> std::optional<std::vector<domain_info_t>>
 	return v_domains;
 }
 
-dotnet::xsfd_dn_module::xsfd_dn_module(void * assembly)
-	: assembly(assembly)
+dotnet::wrap_Assembly::wrap_Assembly(void * assembly)
+	: wrap_base(assembly)
 {
 }
 
-dotnet::xsfd_dn_module::~xsfd_dn_module()
+dotnet::wrap_Assembly::~wrap_Assembly()
 {
 }
 
-dotnet::xsfd_dn_module::operator bool() const noexcept
+dotnet::wrap_base::wrap_base()
+	: instance(nullptr)
 {
-	return assembly;
+}
+
+dotnet::wrap_base::wrap_base(void * i)
+	: instance(i)
+{
+}
+
+auto dotnet::wrap_base::get_name() -> std::wstring 
+{
+	BSTR n = nullptr;
+	if (((HRESULT(__stdcall***)(BSTR *))(instance))[0][0x30](&n) != S_OK)
+		return std::wstring();
+	XSFD_DEFER {
+		SysFreeString(n);
+	};
+	return std::wstring(n);
+}
+
+dotnet::wrap_base::operator bool() const noexcept
+{
+	return instance;
 }

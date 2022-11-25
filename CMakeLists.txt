@@ -44,6 +44,8 @@ add_library(
 	"dotnet.hpp"
 	"dotnet.cpp"
 
+	"eazlib.hpp"
+
 	"global.hpp"
 	"main.cpp"
 

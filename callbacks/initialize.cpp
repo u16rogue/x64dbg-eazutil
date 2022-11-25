@@ -6,6 +6,7 @@
 #include <future>
 
 #include "../dotnet.hpp"
+#include "../eazlib.hpp"
 
 #include "../msdnlib.hpp"
 #include <TlHelp32.h>
@@ -95,7 +96,54 @@ auto callbacks::initialize() -> void
 	dotnet::uninitialize();
 	if (dotnet::initialize())
 	{
-		dotnet::host_start();
+		if (!dotnet::host_running())
+		{
+			dotnet::host_start();
+			if (!dotnet::host_running())
+			{
+				xsfd::log("!ERROR: Failed to start host.\n");
+				return;
+			}
+		}
+
+		if (!eaz::eazlib_module)
+		{
+			auto lib = dotnet::host_load_library("eazlib.dll");
+			if (!lib)
+			{
+				xsfd::log("!ERROR: Failed to load eazlib");
+				return;
+			}
+			eaz::eazlib_module = *lib;
+
+			if (!eaz::decode_fn)
+			{
+				// Find decode method
+				eaz::eazlib_module.enumerate_types([](dotnet::wrap_Type t) -> bool {
+					if (eaz::decode_fn)
+						return false;
+
+					if (t.get_name() != L"SymbolDecoder")
+						return true;
+
+					t.enumerate_methods([](dotnet::wrap_MethodInfo m) -> bool {
+						if (m.get_name() != L"Decode")
+							return true;
+						eaz::decode_fn = m;
+						return false;
+					});
+
+					return true;
+				});
+
+				if (!eaz::decode_fn)
+				{
+					xsfd::log("!ERROR: SymbolDecoder::Decode could not be found.\n");
+					return;
+				}
+			}
+		}
+
 		global::initialized = true;
 		_plugin_menuentrysetname(global::pluginHandle, menuid_initalize, "Re-Initialize");
 		menu::add_render(dump_test, "dump test");
